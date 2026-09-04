@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { RequestDef, RequestTabKey, ResponseView, Tab, WebSocketRequestDef } from '@/types';
 import { newTab } from '@/lib/factory';
-import { localJSONStorage } from '@/lib/storage';
+import { fileJSONStorage } from '@/lib/fileStorage';
 
 export type SidebarPanel = 'collections' | 'environments' | 'history' | 'git';
 export type SplitLayout = 'horizontal' | 'vertical';
@@ -116,7 +116,7 @@ export const useSession = create<SessionState>()(
     {
       name: 'kapi.session',
       version: 1,
-      storage: createJSONStorage(() => localJSONStorage),
+      storage: createJSONStorage(() => fileJSONStorage),
       partialize: (state) => ({
         tabs: state.tabs,
         activeTabId: state.activeTabId,
@@ -130,23 +130,29 @@ export const useSession = create<SessionState>()(
         responseView: state.responseView,
         wrapLines: state.wrapLines,
       }),
-      onRehydrateStorage: () => (state) => {
-        if (!state) return;
-        if (!state.tabs.length) {
-          const tab = newTab();
-          state.tabs = [tab];
-          state.activeTabId = tab.id;
-        } else {
-          // Backfill fields added after some tabs were already persisted.
-          state.tabs = state.tabs.map((t) => ({ ...t, kind: t.kind ?? 'http', ws: t.ws ?? null }) as Tab);
-          if (!state.tabs.some((t) => t.id === state.activeTabId)) {
-            state.activeTabId = state.tabs[0].id;
-          }
-        }
-      },
     },
   ),
 );
+
+/**
+ * See the matching comment in store/workspaces.ts: mutating the state object
+ * `onRehydrateStorage` hands back never goes through a real `set()`, so
+ * neither React nor persist's own storage write ever see it. Doing the same
+ * "seed if empty" / "backfill new fields" work after hydration finishes,
+ * through `setState`, fixes both.
+ */
+useSession.persist.onFinishHydration(() => {
+  const { tabs } = useSession.getState();
+  if (!tabs.length) {
+    const tab = newTab();
+    useSession.setState({ tabs: [tab], activeTabId: tab.id });
+    return;
+  }
+  const backfilled = tabs.map((t) => ({ ...t, kind: t.kind ?? 'http', ws: t.ws ?? null }) as Tab);
+  const activeTabId = useSession.getState().activeTabId;
+  const stillValid = backfilled.some((t) => t.id === activeTabId);
+  useSession.setState({ tabs: backfilled, activeTabId: stillValid ? activeTabId : backfilled[0].id });
+});
 
 export function useActiveTab(): Tab | null {
   return useSession((s) => s.tabs.find((t) => t.id === s.activeTabId) ?? s.tabs[0] ?? null);

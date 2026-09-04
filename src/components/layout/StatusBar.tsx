@@ -1,7 +1,7 @@
 import { PanelLeft, Rows3, Columns3, ShieldCheck } from 'lucide-react';
 import { useSession, type SplitLayout } from '@/store/session';
 import { IconButton } from '@/components/ui/primitives';
-import { estimateStorageBytes } from '@/lib/storage';
+import { estimateDiskUsageBytes, dataDirectoryPath } from '@/lib/fileStorage';
 import { formatBytes } from '@/lib/format';
 import { useEffect, useState } from 'react';
 
@@ -10,11 +10,13 @@ export function StatusBar() {
   const setSession = useSession((s) => s.set);
   const splitLayout = useSession((s) => s.splitLayout);
   const [storage, setStorage] = useState(0);
+  const [dataDir, setDataDir] = useState('');
 
   useEffect(() => {
-    const update = () => setStorage(estimateStorageBytes());
+    const update = () => estimateDiskUsageBytes().then(setStorage);
     update();
     const id = setInterval(update, 4000);
+    dataDirectoryPath().then(setDataDir);
     return () => clearInterval(id);
   }, []);
 
@@ -34,7 +36,7 @@ export function StatusBar() {
         </IconButton>
       </div>
       <span className="flex-1" />
-      <span title="Everything is stored only on this machine">{formatBytes(storage)} used locally</span>
+      <span title={dataDir ? `Stored at ${dataDir}` : 'Everything is stored only on this machine'}>{formatBytes(storage)} used locally</span>
       <span className="flex items-center gap-1" title="Requests go straight from your machine to the API — kapi has no backend of its own">
         <ShieldCheck size={11} /> nothing stored on a server
       </span>

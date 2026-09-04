@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Collection, Environment, KV, RequestDef, TreeNode, WebSocketRequestDef, Workspace } from '@/types';
 import { newCollection, newEnvironment, newWorkspace, seedWorkspace, uid, kv } from '@/lib/factory';
 import { insertNode, locate, mapNode, reidentify, removeNode } from '@/lib/tree';
-import { localJSONStorage } from '@/lib/storage';
+import { fileJSONStorage } from '@/lib/fileStorage';
 
 interface WorkspaceState {
   workspaces: Workspace[];
@@ -235,25 +235,32 @@ export const useWorkspaces = create<WorkspaceState>()(
     {
       name: 'kapi.workspaces',
       version: 1,
-      storage: createJSONStorage(() => localJSONStorage),
-      onRehydrateStorage: () => (state) => {
-        // First visit, or storage was cleared: give them something to play with.
-        if (!state) return;
-        if (!state.workspaces.length) {
-          const seeded = seedWorkspace();
-          state.workspaces = [seeded];
-          state.activeWorkspaceId = seeded.id;
-        } else {
-          // Backfill fields added after some workspaces were already persisted.
-          state.workspaces = state.workspaces.map((ws) => ({ ...ws, gitRepoPath: ws.gitRepoPath ?? null }));
-          if (!state.workspaces.some((ws) => ws.id === state.activeWorkspaceId)) {
-            state.activeWorkspaceId = state.workspaces[0].id;
-          }
-        }
-      },
+      storage: createJSONStorage(() => fileJSONStorage),
     },
   ),
 );
+
+/**
+ * `onRehydrateStorage`'s callback receives the already-hydrated state object,
+ * but mutating its fields directly (as this used to do) never calls the
+ * store's real `set()` — so React never re-renders from it reliably, and
+ * persist's storage.setItem is never triggered, meaning a first-run seed (or
+ * a stale-id repair) would silently vanish without ever reaching disk. Doing
+ * the same fixups here, after hydration finishes, through a real `set()`
+ * call fixes both.
+ */
+useWorkspaces.persist.onFinishHydration(() => {
+  const { workspaces } = useWorkspaces.getState();
+  if (!workspaces.length) {
+    const seeded = seedWorkspace();
+    useWorkspaces.setState({ workspaces: [seeded], activeWorkspaceId: seeded.id });
+    return;
+  }
+  const backfilled = workspaces.map((ws) => ({ ...ws, gitRepoPath: ws.gitRepoPath ?? null }));
+  const activeWorkspaceId = useWorkspaces.getState().activeWorkspaceId;
+  const stillValid = backfilled.some((ws) => ws.id === activeWorkspaceId);
+  useWorkspaces.setState({ workspaces: backfilled, activeWorkspaceId: stillValid ? activeWorkspaceId : backfilled[0].id });
+});
 
 /* ------------------------------------------------------------- selectors */
 

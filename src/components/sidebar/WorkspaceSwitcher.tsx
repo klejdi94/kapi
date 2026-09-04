@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronsUpDown, Download, Import, Plus, Settings2, Trash2 } from 'lucide-react';
+import { Check, ChevronsUpDown, Download, FolderInput, FolderOutput, Import, Plus, Settings2, Trash2 } from 'lucide-react';
 import { useWorkspaces } from '@/store/workspaces';
 import { IconButton } from '@/components/ui/primitives';
 import { toast } from '@/lib/toast';
+import { gitAvailable, pickFolder } from '@/lib/git';
+import { readSnapshot, writeSnapshotTo } from '@/lib/gitWorkspace';
+import { newWorkspace } from '@/lib/factory';
 
 export function WorkspaceSwitcher({ onOpenImport, onOpenExport }: { onOpenImport: () => void; onOpenExport: () => void }) {
   const workspaces = useWorkspaces((s) => s.workspaces);
@@ -10,6 +13,7 @@ export function WorkspaceSwitcher({ onOpenImport, onOpenExport }: { onOpenImport
   const active = workspaces.find((w) => w.id === activeId) ?? workspaces[0];
   const setActive = useWorkspaces((s) => s.setActiveWorkspace);
   const addWorkspace = useWorkspaces((s) => s.addWorkspace);
+  const importWorkspace = useWorkspaces((s) => s.importWorkspace);
   const deleteWorkspace = useWorkspaces((s) => s.deleteWorkspace);
   const renameWorkspace = useWorkspaces((s) => s.renameWorkspace);
 
@@ -25,6 +29,30 @@ export function WorkspaceSwitcher({ onOpenImport, onOpenExport }: { onOpenImport
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [open]);
+
+  const saveToFolder = async () => {
+    if (!active) return;
+    const folder = await pickFolder();
+    if (!folder) return;
+    await writeSnapshotTo(active, folder);
+    toast.success('Saved to folder', folder);
+    setOpen(false);
+  };
+
+  const importFromFolder = async () => {
+    const folder = await pickFolder();
+    if (!folder) return;
+    const snapshot = await readSnapshot(folder);
+    if (!snapshot) {
+      toast.error('No kapi workspace found there', 'Expected a kapi-workspace.json file in that folder.');
+      return;
+    }
+    const ws = newWorkspace(snapshot.name);
+    ws.collections = snapshot.collections;
+    importWorkspace(ws);
+    toast.success('Imported workspace', `${snapshot.name} — ${snapshot.collections.length} collection(s)`);
+    setOpen(false);
+  };
 
   return (
     <div className="relative border-b border-line p-2" ref={ref}>
@@ -120,6 +148,23 @@ export function WorkspaceSwitcher({ onOpenImport, onOpenExport }: { onOpenImport
             >
               <Download size={13} /> Export workspace…
             </button>
+            {gitAvailable() && (
+              <>
+                <div className="my-1 border-t border-line" />
+                <button
+                  onClick={saveToFolder}
+                  className="flex h-8 w-full items-center gap-2 rounded px-2 text-left text-[12.5px] text-dim hover:bg-surface-3 hover:text-fg"
+                >
+                  <FolderOutput size={13} /> Save to folder…
+                </button>
+                <button
+                  onClick={importFromFolder}
+                  className="flex h-8 w-full items-center gap-2 rounded px-2 text-left text-[12.5px] text-dim hover:bg-surface-3 hover:text-fg"
+                >
+                  <FolderInput size={13} /> Import from folder…
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

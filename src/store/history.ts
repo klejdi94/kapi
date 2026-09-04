@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { HistoryEntry, RequestDef } from '@/types';
-import { localJSONStorage } from '@/lib/storage';
+import { fileJSONStorage } from '@/lib/fileStorage';
 
 const MAX_ENTRIES = 200;
 /** Bodies are the only unbounded part of a request; cap them before persisting. */
@@ -39,6 +39,6 @@ export const useHistory = create<HistoryState>()(
       remove: (id) => set((state) => ({ entries: state.entries.filter((e) => e.id !== id) })),
       clear: () => set({ entries: [] }),
     }),
-    { name: 'kapi.history', version: 1, storage: createJSONStorage(() => localJSONStorage) },
+    { name: 'kapi.history', version: 1, storage: createJSONStorage(() => fileJSONStorage) },
   ),
 );

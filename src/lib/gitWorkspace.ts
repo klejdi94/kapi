@@ -26,10 +26,19 @@ export function snapshotPath(gitRepoPath: string): string {
 
 export async function writeSnapshot(workspace: Workspace): Promise<void> {
   if (!workspace.gitRepoPath) return;
+  await writeSnapshotTo(workspace, workspace.gitRepoPath);
+}
+
+/**
+ * Same file format as the git sync feature, but usable against any folder —
+ * this is the plain "save a workspace to a folder" / "import a folder"
+ * action, with no git repo required at all.
+ */
+export async function writeSnapshotTo(workspace: Workspace, folderPath: string): Promise<void> {
   const snapshot = toSnapshot(workspace);
   // Stable key order so unrelated field reordering never shows up as noise
   // in `git diff` — the entire point of this feature.
-  await writeTextFile(snapshotPath(workspace.gitRepoPath), JSON.stringify(snapshot, null, 2) + '\n');
+  await writeTextFile(snapshotPath(folderPath), JSON.stringify(snapshot, null, 2) + '\n');
 }
 
 export async function readSnapshot(gitRepoPath: string): Promise<WorkspaceSnapshot | null> {
