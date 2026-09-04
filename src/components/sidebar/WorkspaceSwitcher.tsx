@@ -1,0 +1,128 @@
+import { useEffect, useRef, useState } from 'react';
+import { Check, ChevronsUpDown, Download, Import, Plus, Settings2, Trash2 } from 'lucide-react';
+import { useWorkspaces } from '@/store/workspaces';
+import { IconButton } from '@/components/ui/primitives';
+import { toast } from '@/lib/toast';
+
+export function WorkspaceSwitcher({ onOpenImport, onOpenExport }: { onOpenImport: () => void; onOpenExport: () => void }) {
+  const workspaces = useWorkspaces((s) => s.workspaces);
+  const activeId = useWorkspaces((s) => s.activeWorkspaceId);
+  const active = workspaces.find((w) => w.id === activeId) ?? workspaces[0];
+  const setActive = useWorkspaces((s) => s.setActiveWorkspace);
+  const addWorkspace = useWorkspaces((s) => s.addWorkspace);
+  const deleteWorkspace = useWorkspaces((s) => s.deleteWorkspace);
+  const renameWorkspace = useWorkspaces((s) => s.renameWorkspace);
+
+  const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [open]);
+
+  return (
+    <div className="relative border-b border-line p-2" ref={ref}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left hover:bg-surface-2"
+      >
+        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-accent text-[11px] font-bold text-accent-fg">
+          {(active?.name || 'K').slice(0, 1).toUpperCase()}
+        </div>
+        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-fg">{active?.name || 'Workspace'}</span>
+        <ChevronsUpDown size={13} className="shrink-0 text-faint" />
+      </button>
+
+      {open && (
+        <div className="animate-in absolute left-2 right-2 top-[calc(100%+2px)] z-30 overflow-hidden rounded-lg border border-line bg-surface-2 shadow-2xl" style={{ boxShadow: 'var(--shadow)' }}>
+          <div className="max-h-64 overflow-y-auto py-1">
+            {workspaces.map((ws) => (
+              <div key={ws.id} className="group flex items-center gap-1 px-1">
+                {editingId === ws.id ? (
+                  <input
+                    autoFocus
+                    defaultValue={ws.name}
+                    onBlur={(e) => {
+                      renameWorkspace(ws.id, e.target.value.trim() || ws.name);
+                      setEditingId(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                      if (e.key === 'Escape') setEditingId(null);
+                    }}
+                    className="my-0.5 h-7 flex-1 rounded border border-accent bg-surface px-2 text-[12.5px] focus:outline-none"
+                  />
+                ) : (
+                  <button
+                    onClick={() => {
+                      setActive(ws.id);
+                      setOpen(false);
+                    }}
+                    className="flex h-8 flex-1 items-center gap-2 rounded px-2 text-left text-[12.5px] hover:bg-surface-3"
+                  >
+                    <Check size={13} className={ws.id === activeId ? 'text-accent' : 'text-transparent'} />
+                    <span className="min-w-0 flex-1 truncate">{ws.name}</span>
+                    <span className="text-[10.5px] text-faint">{ws.collections.length}</span>
+                  </button>
+                )}
+                <div className="flex shrink-0 opacity-0 group-hover:opacity-100">
+                  <IconButton label="Rename" onClick={() => setEditingId(ws.id)}>
+                    <Settings2 size={12} />
+                  </IconButton>
+                  <IconButton
+                    label="Delete workspace"
+                    tone="danger"
+                    onClick={() => {
+                      if (workspaces.length <= 1) {
+                        toast.warn('Can’t delete the only workspace');
+                        return;
+                      }
+                      if (confirm(`Delete workspace "${ws.name}"? This cannot be undone.`)) deleteWorkspace(ws.id);
+                    }}
+                  >
+                    <Trash2 size={12} />
+                  </IconButton>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="border-t border-line p-1">
+            <button
+              onClick={() => {
+                addWorkspace();
+                setOpen(false);
+              }}
+              className="flex h-8 w-full items-center gap-2 rounded px-2 text-left text-[12.5px] text-dim hover:bg-surface-3 hover:text-fg"
+            >
+              <Plus size={13} /> New workspace
+            </button>
+            <button
+              onClick={() => {
+                onOpenImport();
+                setOpen(false);
+              }}
+              className="flex h-8 w-full items-center gap-2 rounded px-2 text-left text-[12.5px] text-dim hover:bg-surface-3 hover:text-fg"
+            >
+              <Import size={13} /> Import…
+            </button>
+            <button
+              onClick={() => {
+                onOpenExport();
+                setOpen(false);
+              }}
+              className="flex h-8 w-full items-center gap-2 rounded px-2 text-left text-[12.5px] text-dim hover:bg-surface-3 hover:text-fg"
+            >
+              <Download size={13} /> Export workspace…
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

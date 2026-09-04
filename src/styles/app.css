@@ -1,0 +1,254 @@
+@import 'tailwindcss';
+
+/* Theme is toggled by a class on <html> so the user's choice beats the OS. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #f1f3f6;
+  --surface-3: #e6e9ee;
+  --border: #e2e6ec;
+  --border-strong: #ccd2db;
+  --text: #101319;
+  --text-dim: #59616e;
+  --text-faint: #878f9c;
+  --accent: #5b4bd8;
+  --accent-fg: #ffffff;
+  --accent-soft: #eceafb;
+  --shadow: 0 1px 2px rgb(16 19 25 / 0.06), 0 8px 24px -12px rgb(16 19 25 / 0.18);
+}
+
+.dark {
+  --bg: #0b0d10;
+  --surface: #121519;
+  --surface-2: #171b21;
+  --surface-3: #1f242c;
+  --border: #262c35;
+  --border-strong: #39424f;
+  --text: #e7eaef;
+  --text-dim: #99a1ad;
+  --text-faint: #69717e;
+  --accent: #8b7cff;
+  --accent-fg: #0b0d10;
+  --accent-soft: #1c1a33;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -12px rgb(0 0 0 / 0.6);
+}
+
+/* Semantic colours, shared by both themes. */
+:root,
+.dark {
+  --ok: #16a34a;
+  --warn: #d97706;
+  --danger: #dc2626;
+  --info: #0891b2;
+
+  --m-get: #16a34a;
+  --m-post: #d97706;
+  --m-put: #2563eb;
+  --m-patch: #9333ea;
+  --m-delete: #dc2626;
+  --m-head: #0891b2;
+  --m-options: #db2777;
+  --m-other: #64748b;
+}
+
+.dark {
+  --ok: #3fce7a;
+  --warn: #f0a934;
+  --danger: #f2615c;
+  --info: #35c1de;
+
+  --m-get: #3fce7a;
+  --m-post: #f0a934;
+  --m-put: #5b9cff;
+  --m-patch: #b581f5;
+  --m-delete: #f2615c;
+  --m-head: #35c1de;
+  --m-options: #f472b6;
+  --m-other: #8b95a5;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-fg: var(--text);
+  --color-dim: var(--text-dim);
+  --color-faint: var(--text-faint);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, 'JetBrains Mono', Menlo, Consolas, monospace;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+    border-radius: 3px;
+  }
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+    color: inherit;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--text-faint);
+  }
+  /* Compact scrollbars; the app is dense and full-height. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-faint);
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* CodeMirror is themed through the same tokens rather than a packaged theme,
+   so the editors match the app exactly in both modes. */
+.cm-editor {
+  height: 100%;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+.cm-editor.cm-focused {
+  outline: none;
+}
+.cm-scroller {
+  font-family: var(--font-mono) !important;
+  line-height: 1.6;
+}
+.cm-gutters {
+  background: transparent !important;
+  border-right: 1px solid var(--border) !important;
+  color: var(--text-faint) !important;
+}
+.cm-activeLineGutter {
+  background: var(--surface-2) !important;
+  color: var(--text-dim) !important;
+}
+.cm-activeLine {
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent) !important;
+}
+.cm-selectionBackground,
+.cm-editor ::selection {
+  background: color-mix(in srgb, var(--accent) 28%, transparent) !important;
+}
+.cm-cursor {
+  border-left-color: var(--accent) !important;
+}
+.cm-foldPlaceholder {
+  background: var(--surface-3) !important;
+  border: 1px solid var(--border-strong) !important;
+  color: var(--text-dim) !important;
+  border-radius: 4px;
+  padding: 0 6px;
+}
+.cm-panels {
+  background: var(--surface-2) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+.cm-textfield {
+  background: var(--surface) !important;
+  border-color: var(--border-strong) !important;
+}
+.cm-button {
+  background: var(--surface-3) !important;
+  border-color: var(--border-strong) !important;
+  background-image: none !important;
+}
+.cm-searchMatch {
+  background: color-mix(in srgb, var(--warn) 30%, transparent) !important;
+}
+.cm-searchMatch-selected {
+  background: color-mix(in srgb, var(--accent) 45%, transparent) !important;
+}
+.cm-lintRange-error {
+  background: none !important;
+  border-bottom: 2px dotted var(--danger);
+}
+.cm-tooltip {
+  background: var(--surface-3) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: 6px;
+  color: var(--text) !important;
+}
+
+@keyframes kapi-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-in {
+  animation: kapi-fade-in 0.14s ease-out;
+}
+
+@keyframes kapi-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.animate-spin-slow {
+  animation: kapi-spin 0.9s linear infinite;
+}

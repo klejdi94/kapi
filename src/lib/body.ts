@@ -1,0 +1,179 @@
+import type { BodyConfig, BodyMode, KV, RequestDef } from '@/types';
+import { getFile } from './files';
+import { resolve, type VarScope } from './variables';
+
+export interface BuiltBody {
+  /** What actually goes on the wire. */
+  payload: BodyInit | null;
+  /** Content-Type kapi will add unless the user set their own. */
+  contentType: string | null;
+  /** Human-readable version for code generation, HAR export and history. */
+  text: string | null;
+  /** Set when the body references files that are no longer in memory. */
+  missingFiles: string[];
+  bytes: number | null;
+}
+
+export const BODY_MODE_LABELS: Record<BodyMode, string> = {
+  none: 'None',
+  json: 'JSON',
+  xml: 'XML',
+  html: 'HTML',
+  text: 'Text',
+  javascript: 'JavaScript',
+  graphql: 'GraphQL',
+  'form-data': 'form-data',
+  urlencoded: 'x-www-form-urlencoded',
+  binary: 'Binary',
+};
+
+export const TEXT_MODES = ['json', 'xml', 'html', 'text', 'javascript'] as const;
+export type TextMode = (typeof TEXT_MODES)[number];
+
+export const CONTENT_TYPES: Record<TextMode, string> = {
+  json: 'application/json',
+  xml: 'application/xml',
+  html: 'text/html',
+  text: 'text/plain',
+  javascript: 'application/javascript',
+};
+
+export function bodyText(body: BodyConfig): string {
+  if (body.mode === 'graphql') return body.graphql.query;
+  if (TEXT_MODES.includes(body.mode as TextMode)) return body.text[body.mode as TextMode] ?? '';
+  return '';
+}
+
+/** Every string in the body that variables should be substituted into. */
+export function bodyStrings(body: BodyConfig): string[] {
+  switch (body.mode) {
+    case 'graphql':
+      return [body.graphql.query, body.graphql.variables];
+    case 'form-data':
+    case 'urlencoded': {
+      const rows = body.mode === 'form-data' ? body.formData : body.urlencoded;
+      return rows.filter((r) => r.enabled).flatMap((r) => [r.key, r.value]);
+    }
+    case 'none':
+    case 'binary':
+      return [];
+    default:
+      return [body.text[body.mode as TextMode] ?? ''];
+  }
+}
+
+function enabledRows(rows: KV[]): KV[] {
+  return rows.filter((r) => r.enabled && (r.key.trim() || r.value.trim() || r.fileName));
+}
+
+export function buildBody(request: RequestDef, scope: VarScope): BuiltBody {
+  const { body, method } = request;
+  const empty: BuiltBody = { payload: null, contentType: null, text: null, missingFiles: [], bytes: null };
+
+  // A body on GET/HEAD is not sendable by fetch, and rarely intended.
+  if (body.mode === 'none' || method === 'GET' || method === 'HEAD') return empty;
+
+  switch (body.mode) {
+    case 'json':
+    case 'xml':
+    case 'html':
+    case 'text':
+    case 'javascript': {
+      const raw = resolve(body.text[body.mode] ?? '', scope);
+      if (!raw) return empty;
+      return {
+        payload: raw,
+        contentType: CONTENT_TYPES[body.mode],
+        text: raw,
+        missingFiles: [],
+        bytes: new TextEncoder().encode(raw).length,
+      };
+    }
+
+    case 'graphql': {
+      const query = resolve(body.graphql.query, scope);
+      let variables: unknown = undefined;
+      const rawVars = resolve(body.graphql.variables, scope).trim();
+      if (rawVars) {
+        try {
+          variables = JSON.parse(rawVars);
+        } catch {
+          // Keep the user's text rather than silently dropping it; the server
+          // will complain in a way they can act on.
+          variables = rawVars;
+        }
+      }
+      const payload = JSON.stringify(variables === undefined ? { query } : { query, variables });
+      return {
+        payload,
+        contentType: 'application/json',
+        text: payload,
+        missingFiles: [],
+        bytes: new TextEncoder().encode(payload).length,
+      };
+    }
+
+    case 'urlencoded': {
+      const params = new URLSearchParams();
+      for (const row of enabledRows(body.urlencoded)) {
+        params.append(resolve(row.key, scope), resolve(row.value, scope));
+      }
+      const text = params.toString();
+      if (!text) return empty;
+      return {
+        payload: text,
+        contentType: 'application/x-www-form-urlencoded',
+        text,
+        missingFiles: [],
+        bytes: new TextEncoder().encode(text).length,
+      };
+    }
+
+    case 'form-data': {
+      const form = new FormData();
+      const missingFiles: string[] = [];
+      const preview: string[] = [];
+      for (const row of enabledRows(body.formData)) {
+        const key = resolve(row.key, scope);
+        if (row.kind === 'file') {
+          const file = getFile(row.id);
+          if (!file) {
+            if (row.fileName) missingFiles.push(row.fileName);
+            continue;
+          }
+          form.append(key, file, file.name);
+          preview.push(`${key}: <file ${file.name}, ${file.size} bytes>`);
+        } else {
+          const value = resolve(row.value, scope);
+          form.append(key, value);
+          preview.push(`${key}: ${value}`);
+        }
+      }
+      // The boundary is generated by the runtime; setting Content-Type by hand
+      // would break it, so we leave it null and let fetch fill it in.
+      return {
+        payload: form,
+        contentType: null,
+        text: preview.join('\n'),
+        missingFiles,
+        bytes: null,
+      };
+    }
+
+    case 'binary': {
+      if (!body.binary) return empty;
+      const file = getFile('binary');
+      if (!file) return { ...empty, missingFiles: [body.binary.fileName] };
+      return {
+        payload: file,
+        contentType: file.type || 'application/octet-stream',
+        text: `<binary ${file.name}, ${file.size} bytes>`,
+        missingFiles: [],
+        bytes: file.size,
+      };
+    }
+
+    default:
+      return empty;
+  }
+}
