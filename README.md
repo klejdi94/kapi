@@ -19,6 +19,22 @@ sitting between you and the API.
 macOS (Apple Silicon and Intel) and Windows x64. Every build lives on the
 [Releases](https://github.com/klejdi94/kapi/releases) page.
 
+### Opening an unsigned build
+
+kapi is not signed with a paid Apple Developer certificate, so both systems will
+question it on first launch.
+
+**macOS** — open the `.dmg`, drag kapi to Applications, then right-click the app
+and choose **Open** (once; double-clicking is refused). If macOS instead claims
+the app *"is damaged and can't be opened"*, it is not — that message means the
+download carries a quarantine flag. Clear it and open normally:
+
+```
+xattr -cr /Applications/kapi.app
+```
+
+**Windows** — SmartScreen shows a warning: choose **More info → Run anyway**.
+
 ---
 
 ## What you get
