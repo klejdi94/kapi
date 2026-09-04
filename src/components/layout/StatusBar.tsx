@@ -34,8 +34,8 @@ export function StatusBar() {
         </IconButton>
       </div>
       <span className="flex-1" />
-      <span title="Everything is stored only in this browser's localStorage">{formatBytes(storage)} used locally</span>
-      <span className="flex items-center gap-1" title="Requests go straight from your browser to the API — kapi has no backend of its own">
+      <span title="Everything is stored only on this machine">{formatBytes(storage)} used locally</span>
+      <span className="flex items-center gap-1" title="Requests go straight from your machine to the API — kapi has no backend of its own">
         <ShieldCheck size={11} /> nothing stored on a server
       </span>
     </div>
