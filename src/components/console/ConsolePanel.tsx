@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowDownCircle, ArrowUpCircle, Ban, Globe, Plug, Server, Trash2, X } from 'lucide-react';
+import { ArrowDownCircle, ArrowUpCircle, Ban, Braces, Globe, Plug, Server, Trash2, TriangleAlert, X } from 'lucide-react';
 import clsx from 'clsx';
 import { useConsole, type ConsoleEntry, type ConsoleKind } from '@/store/console';
 import { IconButton } from '@/components/ui/primitives';
@@ -13,6 +13,8 @@ const KIND_ICON: Record<ConsoleKind, typeof Globe> = {
   'ws-receive': ArrowDownCircle,
   'ws-close': Plug,
   'mock-hit': Server,
+  script: Braces,
+  'script-error': TriangleAlert,
 };
 
 const KIND_COLOR: Record<ConsoleKind, string> = {
@@ -24,6 +26,8 @@ const KIND_COLOR: Record<ConsoleKind, string> = {
   'ws-receive': 'text-info',
   'ws-close': 'text-faint',
   'mock-hit': 'text-warn',
+  script: 'text-dim',
+  'script-error': 'text-danger',
 };
 
 export function ConsolePanel({ height = 260 }: { height?: number }) {

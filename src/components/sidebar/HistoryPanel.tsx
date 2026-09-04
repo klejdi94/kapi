@@ -6,6 +6,7 @@ import { methodVar } from '@/lib/methodColor';
 import { dayBucket, formatDuration, statusTone } from '@/lib/format';
 import { IconButton, Badge, EmptyState } from '@/components/ui/primitives';
 import { History } from 'lucide-react';
+import { confirmAction } from '@/lib/confirm';
 
 export function HistoryPanel() {
   const entries = useHistory((s) => s.entries);
@@ -31,7 +32,9 @@ export function HistoryPanel() {
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-2.5 py-2">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-faint">History</span>
-        <IconButton label="Clear history" tone="danger" onClick={() => confirm('Clear all request history?') && clear()}>
+        <IconButton label="Clear history" tone="danger" onClick={async () => {
+          if (await confirmAction('Clear all request history?', { okLabel: 'Clear', danger: true })) clear();
+        }}>
           <Trash2 size={13} />
         </IconButton>
       </div>

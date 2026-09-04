@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bot, Plus, Sparkles, Terminal, Trash2 } from 'lucide-react';
-import { Button, EmptyState, Spinner } from '@/components/ui/primitives';
+import { Button, EmptyState } from '@/components/ui/primitives';
+import { Thinking } from '@/components/ui/Thinking';
 import { useAiChat } from '@/store/aiChat';
 import { askClaude, claudeAvailable, isClaudeCliInstalled } from '@/lib/claudeCli';
 import { extractAiRequest, stripAiRequestBlock } from '@/lib/aiRequestParse';
@@ -111,11 +112,7 @@ export function AiPanel() {
             {messages.map((m, i) => (
               <ChatBubble key={i} turn={m} onUseRequest={useRequest} />
             ))}
-            {loading && (
-              <div className="flex items-center gap-2 text-[12px] text-faint">
-                <Spinner className="h-3.5 w-3.5" /> Asking claude…
-              </div>
-            )}
+            {loading && <Thinking />}
           </div>
         )}
       </div>
@@ -124,7 +121,7 @@ export function AiPanel() {
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="Describe the API call you want…"
+          placeholder={loading ? 'Claude is still replying — you can keep typing…' : 'Describe the API call you want…'}
           rows={2}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send();

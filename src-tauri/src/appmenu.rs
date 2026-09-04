@@ -7,28 +7,36 @@ use tauri::{
 /// the same handlers already wired to keyboard shortcuts run — the menu is a
 /// second way to reach them, not a second implementation of them.
 pub fn build<R: Runtime>(app: &App<R>) -> tauri::Result<Menu<R>> {
-    let app_menu = SubmenuBuilder::new(app, "kapi")
-        .item(&PredefinedMenuItem::about(
-            app,
-            Some("About kapi"),
-            Some(AboutMetadata {
-                name: Some("kapi".into()),
-                version: Some(env!("CARGO_PKG_VERSION").into()),
-                ..Default::default()
-            }),
-        )?)
-        .separator()
-        .item(&PredefinedMenuItem::hide(app, None)?)
-        .item(&PredefinedMenuItem::hide_others(app, None)?)
-        .item(&PredefinedMenuItem::show_all(app, None)?)
-        .separator()
-        .item(&PredefinedMenuItem::quit(app, None)?)
-        .build()?;
+    let mut app_menu = SubmenuBuilder::new(app, "kapi").item(&PredefinedMenuItem::about(
+        app,
+        Some("About kapi"),
+        Some(AboutMetadata {
+            name: Some("kapi".into()),
+            version: Some(env!("CARGO_PKG_VERSION").into()),
+            ..Default::default()
+        }),
+    )?);
+    // hide/hide_others/show_all exist only on macOS.
+    #[cfg(target_os = "macos")]
+    {
+        app_menu = app_menu
+            .separator()
+            .item(&PredefinedMenuItem::hide(app, None)?)
+            .item(&PredefinedMenuItem::hide_others(app, None)?)
+            .item(&PredefinedMenuItem::show_all(app, None)?);
+    }
+    let app_menu = app_menu.separator().item(&PredefinedMenuItem::quit(app, None)?).build()?;
 
     let file_menu = SubmenuBuilder::new(app, "File")
         .item(&MenuItemBuilder::with_id("new-tab", "New Request Tab").accelerator("CmdOrCtrl+T").build(app)?)
         .item(&MenuItemBuilder::with_id("new-ws-tab", "New WebSocket Tab").build(app)?)
         .item(&MenuItemBuilder::with_id("close-tab", "Close Tab").accelerator("CmdOrCtrl+W").build(app)?)
+        .item(&MenuItemBuilder::with_id("close-other-tabs", "Close Other Tabs").build(app)?)
+        .item(
+            &MenuItemBuilder::with_id("close-all-tabs", "Close All Tabs")
+                .accelerator("CmdOrCtrl+Shift+W")
+                .build(app)?,
+        )
         .separator()
         .item(&MenuItemBuilder::with_id("save", "Save").accelerator("CmdOrCtrl+S").build(app)?)
         .separator()

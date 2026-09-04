@@ -14,6 +14,8 @@ import { ImportModal } from '@/components/modals/ImportModal';
 import { SaveAsModal } from '@/components/modals/SaveAsModal';
 import { ExportModal } from '@/components/modals/ExportModal';
 import { CodeSnippetModal } from '@/components/modals/CodeSnippetModal';
+import { PromptModal } from '@/components/modals/PromptModal';
+import { CollectionScriptsModal } from '@/components/modals/CollectionScriptsModal';
 import { WsPanel } from '@/components/ws/WsPanel';
 import { ConsolePanel } from '@/components/console/ConsolePanel';
 import { useSession, useActiveTab } from '@/store/session';
@@ -32,8 +34,55 @@ import { send } from '@/lib/send';
 import { uid, newWebSocketRequest } from '@/lib/factory';
 import { toast } from '@/lib/toast';
 import { responseToExample, exampleToResponse } from '@/lib/examples';
-import type { RequestDef, SavedExample, WebSocketRequestDef } from '@/types';
-import { FileDown } from 'lucide-react';
+import { runScript, responseToScriptInput, type ScriptContext, type TestResult } from '@/lib/scripting';
+import { useTestResults } from '@/store/testResults';
+import { withTrailingBlank } from '@/lib/factory';
+import type { KV, RequestDef, SavedExample, WebSocketRequestDef } from '@/types';
+import { FileDown, X } from 'lucide-react';
+
+/** The three writable variable scopes a script can touch, threaded between chained scripts. */
+interface ScriptVars {
+  environment: KV[];
+  globals: KV[];
+  collectionVariables: KV[];
+}
+
+interface ChainOutcome {
+  vars: ScriptVars;
+  ran: boolean;
+  logs: string[];
+  errors: string[];
+  tests: TestResult[];
+}
+
+/**
+ * Runs collection-level then request-level scripts, feeding each one's variable
+ * writes into the next — matching Postman's execution order, so a collection
+ * script can set up a value the request script then refines.
+ */
+function chainScripts(
+  scripts: (string | undefined)[],
+  vars: ScriptVars,
+  base: Pick<ScriptContext, 'request' | 'response'>,
+): ChainOutcome {
+  const out: ChainOutcome = { vars, ran: false, logs: [], errors: [], tests: [] };
+  for (const script of scripts) {
+    if (!script?.trim()) continue;
+    out.ran = true;
+    const result = runScript(script, { ...base, ...out.vars });
+    out.vars = {
+      environment: result.environment,
+      globals: result.globals,
+      collectionVariables: result.collectionVariables,
+    };
+    out.logs.push(...result.logs);
+    if (result.error) out.errors.push(result.error);
+    out.tests.push(...result.tests);
+  }
+  return out;
+}
+
+const EMPTY_TESTS: TestResult[] = [];
 
 export default function App() {
   const tabs = useSession((s) => s.tabs);
@@ -43,6 +92,8 @@ export default function App() {
   const patchTab = useSession((s) => s.patchTab);
   const openTab = useSession((s) => s.openTab);
   const closeTab = useSession((s) => s.closeTab);
+  const closeOtherTabs = useSession((s) => s.closeOtherTabs);
+  const closeAllTabs = useSession((s) => s.closeAllTabs);
   const sidebarOpen = useSession((s) => s.sidebarOpen);
   const sidebarWidth = useSession((s) => s.sidebarWidth);
   const splitLayout = useSession((s) => s.splitLayout);
@@ -52,6 +103,9 @@ export default function App() {
   const workspace = useActiveWorkspace();
   const updateRequest = useWorkspaces((s) => s.updateRequest);
   const updateWebSocketRequest = useWorkspaces((s) => s.updateWebSocketRequest);
+  const setGlobals = useWorkspaces((s) => s.setGlobals);
+  const updateEnvironmentStore = useWorkspaces((s) => s.updateEnvironment);
+  const updateCollectionStore = useWorkspaces((s) => s.updateCollection);
   const updateTabWs = useSession((s) => s.updateTabWs);
   const addHistory = useHistory((s) => s.add);
 
@@ -65,7 +119,10 @@ export default function App() {
   const [saveAsTabId, setSaveAsTabId] = useState<string | null>(null);
   const [exportCollectionId, setExportCollectionId] = useState<string | null | 'workspace'>(null);
   const [codeOpen, setCodeOpen] = useState(false);
+  const [exampleNameOpen, setExampleNameOpen] = useState(false);
+  const [scriptsCollectionId, setScriptsCollectionId] = useState<string | null>(null);
   const consoleOpen = useConsole((s) => s.open);
+  const testResults = useTestResults((s) => (activeTabId ? (s.byTab[activeTabId] ?? EMPTY_TESTS) : EMPTY_TESTS));
 
   const collection = activeTab ? findCollection(workspace, activeTab.collectionId) : null;
   const scope = useMemo(() => buildScope(workspace, collection), [workspace, collection]);
@@ -79,8 +136,13 @@ export default function App() {
   // The collection tree dispatches this rather than importing App state directly.
   useEffect(() => {
     const onExport = (e: Event) => setExportCollectionId((e as CustomEvent<string>).detail);
+    const onScripts = (e: Event) => setScriptsCollectionId((e as CustomEvent<string>).detail);
     window.addEventListener('kapi:export-collection', onExport);
-    return () => window.removeEventListener('kapi:export-collection', onExport);
+    window.addEventListener('kapi:collection-scripts', onScripts);
+    return () => {
+      window.removeEventListener('kapi:export-collection', onExport);
+      window.removeEventListener('kapi:collection-scripts', onScripts);
+    };
   }, []);
 
   useEffect(() => {
@@ -101,20 +163,79 @@ export default function App() {
     };
   }, []);
 
+  const environment = workspace.environments.find((e) => e.id === workspace.activeEnvironmentId) ?? null;
+
+  /** Writes a script phase's console output and errors into the Console panel. */
+  const logScriptPhase = (phase: 'Pre-request' | 'Test', outcome: ChainOutcome, tabName: string) => {
+    if (outcome.logs.length) {
+      useConsole.getState().log({
+        kind: 'script',
+        summary: `${phase} script · ${outcome.logs.length} log${outcome.logs.length === 1 ? '' : 's'}`,
+        detail: outcome.logs.join('\n'),
+        tabName,
+      });
+    }
+    for (const error of outcome.errors) {
+      useConsole.getState().log({ kind: 'script-error', summary: `${phase} script failed — ${error}`, detail: error, tabName });
+    }
+  };
+
+  /** Persists script variable writes back into the workspace, only when a script actually ran. */
+  const persistScriptVars = (outcome: ChainOutcome) => {
+    if (!outcome.ran) return;
+    setGlobals(withTrailingBlank(outcome.vars.globals));
+    if (environment) updateEnvironmentStore(environment.id, { variables: withTrailingBlank(outcome.vars.environment) });
+    if (collection) updateCollectionStore(collection.id, { variables: withTrailingBlank(outcome.vars.collectionVariables) });
+  };
+
   const doSend = async () => {
     if (!activeTab || activeTab.kind !== 'http') return;
     // The tab's own request may say `auth: 'inherit'` or rely on folder/collection
     // headers — resolve those before anything hits the wire.
     const request = resolveInheritedForNode(activeTab.request, collection, activeTab.nodeId);
+    const scriptRequest = {
+      method: request.method,
+      url: request.url,
+      headers: request.headers.filter((h) => h.enabled && h.key).map((h) => [h.key, h.value] as [string, string]),
+    };
+    const startVars: ScriptVars = {
+      environment: environment?.variables ?? [],
+      globals: workspace.globals,
+      collectionVariables: collection?.variables ?? [],
+    };
+
+    const pre = chainScripts([collection?.preRequestScript, activeTab.request.preRequestScript], startVars, {
+      request: scriptRequest,
+    });
+    logScriptPhase('Pre-request', pre, activeTab.name);
+    persistScriptVars(pre);
+
+    // Variables the pre-request script just set must be visible to {{...}}
+    // substitution on this very send, so rebuild the scope from its output
+    // rather than using the memo captured at render time.
+    const sendScope = pre.ran
+      ? buildScope(
+          {
+            ...workspace,
+            globals: pre.vars.globals,
+            environments: environment
+              ? workspace.environments.map((e) => (e.id === environment.id ? { ...e, variables: pre.vars.environment } : e))
+              : workspace.environments,
+          },
+          collection ? { ...collection, variables: pre.vars.collectionVariables } : null,
+        )
+      : scope;
+
     const controller = new AbortController();
     begin(activeTab.id, controller);
+    useTestResults.getState().clear(activeTab.id);
     useConsole.getState().log({
       kind: 'http-request',
       summary: `→ ${request.method} ${request.url}`,
       detail: `${request.method} ${request.url}\n\n${request.headers.filter((h) => h.enabled && h.key).map((h) => `${h.key}: ${h.value}`).join('\n')}`,
       tabName: activeTab.name,
     });
-    const result = await send(request, scope, { signal: controller.signal });
+    const result = await send(request, sendScope, { signal: controller.signal });
     finish(activeTab.id, result);
     if (result.ok) {
       const r = result.response;
@@ -124,6 +245,22 @@ export default function App() {
         detail: `${r.status} ${r.statusText}\n\n${r.headers.map(([k, v]) => `${k}: ${v}`).join('\n')}\n\n${r.binary ? '<binary body>' : r.text.slice(0, 5000)}`,
         tabName: activeTab.name,
       });
+      const post = chainScripts([collection?.testScript, activeTab.request.testScript], pre.vars, {
+        request: scriptRequest,
+        response: responseToScriptInput(result.response),
+      });
+      logScriptPhase('Test', post, activeTab.name);
+      persistScriptVars(post);
+      useTestResults.getState().setResults(activeTab.id, post.tests);
+      if (post.tests.length) {
+        const failed = post.tests.filter((t) => !t.passed).length;
+        useConsole.getState().log({
+          kind: failed ? 'script-error' : 'script',
+          summary: `Tests · ${post.tests.length - failed}/${post.tests.length} passed`,
+          detail: post.tests.map((t) => `${t.passed ? '✓' : '✕'} ${t.name}${t.error ? `\n    ${t.error}` : ''}`).join('\n'),
+          tabName: activeTab.name,
+        });
+      }
     } else {
       useConsole.getState().log({
         kind: 'http-error',
@@ -186,17 +323,38 @@ export default function App() {
 
   const onSaveExample = () => {
     if (!activeTab || activeTab.kind !== 'http' || !run.result?.ok) return;
-    const name = prompt('Name this example', `${run.result.response.status} response`);
-    if (!name) return;
+    setExampleNameOpen(true);
+  };
+
+  const saveExampleAs = (name: string) => {
+    if (!activeTab || activeTab.kind !== 'http' || !run.result?.ok) return;
     const example = responseToExample(run.result.response, name);
-    persistExamples([...(activeTab.request.examples ?? []), example]);
-    toast.success('Saved example', name);
+    const request = { ...activeTab.request, examples: [...(activeTab.request.examples ?? []), example] };
+    updateTabRequest(activeTab.id, request);
+    if (activeTab.nodeId && activeTab.collectionId) {
+      updateRequest(activeTab.collectionId, activeTab.nodeId, request);
+      toast.success('Saved example', `${name} · under "${activeTab.name}"`);
+    } else {
+      // Nothing to attach it to yet — the example lives in the tab until the
+      // request itself is saved, so say so rather than implying it persisted.
+      patchTab(activeTab.id, { dirty: true });
+      toast.info('Saved example', 'Save this request to a collection to keep it.');
+    }
   };
 
   const onLoadExample = (example: SavedExample) => {
     if (!activeTab) return;
     const response = exampleToResponse(example, activeTab.request.method, activeTab.request.url);
     useResponses.getState().setResult(activeTab.id, { ok: true, response });
+  };
+
+  /** Claude-written assertions land in the request's own Tests script, appended to anything already there. */
+  const onGeneratedTests = (script: string) => {
+    if (!activeTab) return;
+    const existing = activeTab.request.testScript?.trim();
+    const testScript = existing ? `${existing}\n\n${script}\n` : `${script}\n`;
+    updateTabRequest(activeTab.id, { ...activeTab.request, testScript });
+    setSession('requestTab', 'scripts');
   };
 
   const onDeleteExample = (id: string) => {
@@ -219,6 +377,12 @@ export default function App() {
         break;
       case 'close-tab':
         if (activeTabId) closeTab(activeTabId);
+        break;
+      case 'close-other-tabs':
+        if (activeTabId) closeOtherTabs(activeTabId);
+        break;
+      case 'close-all-tabs':
+        closeAllTabs();
         break;
       case 'send':
         if (activeTab?.kind === 'http') doSend();
@@ -259,7 +423,7 @@ export default function App() {
         runAction('new-tab');
       } else if (mod && e.key.toLowerCase() === 'w') {
         e.preventDefault();
-        runAction('close-tab');
+        runAction(e.shiftKey ? 'close-all-tabs' : 'close-tab');
       } else if (mod && e.key === 'Enter') {
         e.preventDefault();
         runAction('send');
@@ -294,6 +458,9 @@ export default function App() {
     { id: 'import', label: 'Import…', icon: <FileDown size={13} />, run: () => setImportOpen(true) },
     { id: 'export-workspace', label: 'Export workspace…', icon: <FileDown size={13} />, run: () => setExportCollectionId('workspace') },
     { id: 'new-ws-tab', label: 'New WebSocket tab', icon: <FileDown size={13} />, run: () => openTab({ kind: 'ws', name: 'New WebSocket', ws: newWebSocketRequest() }) },
+    { id: 'close-tab', label: 'Close tab', icon: <X size={13} />, run: () => runAction('close-tab') },
+    { id: 'close-other-tabs', label: 'Close other tabs', icon: <X size={13} />, run: () => runAction('close-other-tabs') },
+    { id: 'close-all-tabs', label: 'Close all tabs', icon: <X size={13} />, run: () => runAction('close-all-tabs') },
     ...(activeTab?.kind === 'http' ? [{ id: 'generate-code', label: 'Generate code for this request…', icon: <FileDown size={13} />, run: () => setCodeOpen(true) }] : []),
   ];
 
@@ -347,6 +514,9 @@ export default function App() {
                     examples={activeTab.request.examples}
                     onLoadExample={onLoadExample}
                     onDeleteExample={onDeleteExample}
+                    testResults={testResults}
+                    hasTestScript={!!activeTab.request.testScript?.trim()}
+                    onGeneratedTests={onGeneratedTests}
                   />
                 }
               />
@@ -360,6 +530,15 @@ export default function App() {
       <ToastHost />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} extraCommands={extraCommands} />
       <ImportModal open={importOpen} onClose={() => setImportOpen(false)} />
+      <CollectionScriptsModal collectionId={scriptsCollectionId} onClose={() => setScriptsCollectionId(null)} />
+      <PromptModal
+        open={exampleNameOpen}
+        title="Save response as example"
+        label="Example name"
+        defaultValue={run.result?.ok ? `${run.result.response.status} response` : 'Example'}
+        onSubmit={saveExampleAs}
+        onClose={() => setExampleNameOpen(false)}
+      />
       <SaveAsModal open={saveAsTabId !== null} onClose={() => setSaveAsTabId(null)} tabId={saveAsTabId} />
       <ExportModal
         open={exportCollectionId !== null}

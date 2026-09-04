@@ -104,6 +104,10 @@ export interface RequestDef {
   settings: RequestSettings;
   /** Saved sample responses, shown in the viewer's examples menu. */
   examples?: SavedExample[];
+  /** JS run before the request is built — set/read variables, e.g. to sign a request. */
+  preRequestScript?: string;
+  /** JS run after the response arrives — assertions via pm.test(), can also set variables. */
+  testScript?: string;
 }
 
 export interface SavedExample {
@@ -163,6 +167,10 @@ export interface Collection {
   headers: KV[];
   variables: KV[];
   items: TreeNode[];
+  /** Runs before every request in the collection, ahead of that request's own pre-request script. */
+  preRequestScript?: string;
+  /** Runs after every response in the collection, ahead of that request's own test script. */
+  testScript?: string;
 }
 
 export interface Environment {
@@ -301,5 +309,5 @@ export interface HistoryEntry {
   request: RequestDef;
 }
 
-export type ResponseView = 'pretty' | 'tree' | 'raw' | 'preview' | 'headers' | 'cookies' | 'timings';
-export type RequestTabKey = 'params' | 'body' | 'headers' | 'auth' | 'settings';
+export type ResponseView = 'pretty' | 'tree' | 'raw' | 'preview' | 'headers' | 'cookies' | 'timings' | 'tests';
+export type RequestTabKey = 'params' | 'body' | 'headers' | 'auth' | 'scripts' | 'settings';

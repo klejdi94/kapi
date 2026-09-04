@@ -93,6 +93,8 @@ export function newRequest(partial: Partial<RequestDef> = {}): RequestDef {
     body: emptyBody(),
     settings: defaultSettings(),
     examples: [],
+    preRequestScript: '',
+    testScript: '',
     ...partial,
   };
 }
@@ -115,6 +117,8 @@ export function newCollection(name = 'New collection'): Collection {
     headers: [],
     variables: [kv({ enabled: false })],
     items: [],
+    preRequestScript: '',
+    testScript: '',
   };
 }
 

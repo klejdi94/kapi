@@ -6,10 +6,14 @@ import { ResponseMeta } from './ResponseMeta';
 import { PrettyView, RawView, PreviewView, HeadersView, CookiesView, TimingsView } from './Views';
 import { JsonTree } from './JsonTree';
 import { ErrorView } from './ErrorView';
+import { TestsView } from './TestsView';
+import type { TestResult } from '@/lib/scripting';
 import { useSession } from '@/store/session';
 import type { RunResult } from '@/types';
 import { extensionFor, mimeOf, formatRelativeTime, statusTone } from '@/lib/format';
 import { Send } from 'lucide-react';
+import { saveFile } from '@/lib/saveFile';
+import { toast } from '@/lib/toast';
 
 export function ResponseViewer({
   run,
@@ -18,6 +22,9 @@ export function ResponseViewer({
   examples,
   onLoadExample,
   onDeleteExample,
+  testResults,
+  hasTestScript,
+  onGeneratedTests,
 }: {
   run: RunResult | null;
   loading: boolean;
@@ -25,6 +32,9 @@ export function ResponseViewer({
   examples?: SavedExample[];
   onLoadExample?: (example: SavedExample) => void;
   onDeleteExample?: (id: string) => void;
+  testResults?: TestResult[];
+  hasTestScript?: boolean;
+  onGeneratedTests?: (script: string) => void;
 }) {
   const view = useSession((s) => s.responseView);
   const setView = useSession((s) => s.set);
@@ -87,15 +97,12 @@ export function ResponseViewer({
 
   const cookieCount = response.headers.filter(([n]) => n.toLowerCase() === 'set-cookie').length;
 
-  const download = () => {
+  const download = async () => {
     if (!response.blob) return;
-    const mime = mimeOf(response.contentType);
-    const url = URL.createObjectURL(response.blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `response.${extensionFor(mime)}`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const name = `response.${extensionFor(mimeOf(response.contentType))}`;
+    const path = await saveFile(name, response.blob, response.contentType);
+    if (path === null) return;
+    toast.success('Saved response', path || name);
   };
 
   return (
@@ -115,6 +122,7 @@ export function ResponseViewer({
               { value: 'headers', label: 'Headers', count: response.headers.length },
               { value: 'cookies', label: 'Cookies', count: cookieCount },
               { value: 'timings', label: 'Timings' },
+              { value: 'tests', label: 'Tests', count: testResults?.length ?? 0 },
             ] as const
           }
         />
@@ -168,6 +176,14 @@ export function ResponseViewer({
         {view === 'headers' && <HeadersView response={response} />}
         {view === 'cookies' && <CookiesView response={response} />}
         {view === 'timings' && <TimingsView response={response} />}
+        {view === 'tests' && (
+          <TestsView
+            results={testResults ?? []}
+            response={response}
+            hasScript={!!hasTestScript}
+            onGenerated={(script) => onGeneratedTests?.(script)}
+          />
+        )}
         {view === 'tree' &&
           (jsonParseError ? (
             <EmptyState title="This response isn't valid JSON" detail={jsonParseError} />

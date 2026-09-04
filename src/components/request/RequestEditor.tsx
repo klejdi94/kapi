@@ -7,6 +7,7 @@ import { HeadersTab } from './HeadersTab';
 import { AuthTab } from './AuthTab';
 import { BodyTab } from './BodyTab';
 import { SettingsTab } from './SettingsTab';
+import { ScriptsTab } from './ScriptsTab';
 import { kv, withTrailingBlank } from '@/lib/factory';
 import { mergeParamsFromUrl, pathVariableNames, unresolvedVariables } from '@/lib/send';
 import { AUTH_LABELS, effectiveAuth } from '@/lib/auth';
@@ -78,6 +79,7 @@ export function RequestEditor({
   const enabledHeaderCount = request.headers.filter((r) => r.enabled && r.key.trim()).length;
   const enabledParamCount = request.params.filter((r) => r.enabled && r.key.trim()).length;
   const hasBody = request.body.mode !== 'none';
+  const hasScripts = !!(request.preRequestScript?.trim() || request.testScript?.trim());
 
   const set = <K extends keyof RequestDef>(key: K, value: RequestDef[K]) => onChange({ ...request, [key]: value });
 
@@ -122,6 +124,7 @@ export function RequestEditor({
             { value: 'body', label: 'Body', dot: hasBody },
             { value: 'headers', label: 'Headers', count: enabledHeaderCount },
             { value: 'auth', label: 'Auth', dot: resolvedAuth.type !== 'none' },
+            { value: 'scripts', label: 'Scripts', dot: hasScripts },
             { value: 'settings', label: 'Settings' },
           ]}
         />
@@ -158,6 +161,17 @@ export function RequestEditor({
             inheritedFrom={inheritedFromLabel}
             warning={null}
             canInherit={!!collection}
+          />
+        )}
+        {requestTab === 'scripts' && (
+          <ScriptsTab
+            preRequestScript={request.preRequestScript ?? ''}
+            testScript={request.testScript ?? ''}
+            onChange={(patch) => onChange({ ...request, ...patch })}
+            collectionHasScripts={{
+              pre: !!collection?.preRequestScript?.trim(),
+              test: !!collection?.testScript?.trim(),
+            }}
           />
         )}
         {requestTab === 'settings' && <SettingsTab settings={request.settings} onChange={(settings) => set('settings', settings)} />}

@@ -95,6 +95,18 @@ export function deepClone<T>(value: T): T {
   return structuredClone(value);
 }
 
+/** Sets `expanded` on every folder in the tree — the "expand all" / "collapse all" action. */
+export function setAllExpanded(items: TreeNode[], expanded: boolean): TreeNode[] {
+  return items.map((node) =>
+    node.type === 'folder' ? { ...node, expanded, items: setAllExpanded(node.items, expanded) } : node,
+  );
+}
+
+/** True if any folder anywhere in the tree is collapsed — used to pick which of the two actions to show. */
+export function hasCollapsedFolder(items: TreeNode[]): boolean {
+  return items.some((node) => node.type === 'folder' && (!node.expanded || hasCollapsedFolder(node.items)));
+}
+
 /** Fresh ids throughout, so a duplicated subtree never collides with the original. */
 export function reidentify(node: TreeNode, makeId: () => string): TreeNode {
   if (node.type === 'folder') {

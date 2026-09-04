@@ -7,6 +7,7 @@ import { gitAvailable, pickFolder } from '@/lib/git';
 import { readSnapshot, writeSnapshotTo } from '@/lib/gitWorkspace';
 import { newWorkspace } from '@/lib/factory';
 import { buildFeatureTourCollection, demoMockRoutes } from '@/lib/demo';
+import { confirmAction } from '@/lib/confirm';
 
 const ICON_CHOICES = ['🚀', '🔧', '⚡', '🛠️', '📦', '🌐', '🔒', '🧪', '💾', '🎯', '🐙', '🔥', '📡', '🧩', '🗂️', '🎨'];
 
@@ -170,12 +171,12 @@ export function WorkspaceSwitcher({ onOpenImport, onOpenExport }: { onOpenImport
                   <IconButton
                     label="Delete workspace"
                     tone="danger"
-                    onClick={() => {
+                    onClick={async () => {
                       if (workspaces.length <= 1) {
                         toast.warn('Can’t delete the only workspace');
                         return;
                       }
-                      if (confirm(`Delete workspace "${ws.name}"? This cannot be undone.`)) deleteWorkspace(ws.id);
+                      if (await confirmAction(`Delete workspace "${ws.name}"? This cannot be undone.`, { okLabel: 'Delete', danger: true })) deleteWorkspace(ws.id);
                     }}
                   >
                     <Trash2 size={12} />

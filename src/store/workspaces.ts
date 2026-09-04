@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Collection, Environment, KV, MockServerConfig, RequestDef, TreeNode, WebSocketRequestDef, Workspace } from '@/types';
 import { newCollection, newEnvironment, newWorkspace, seedWorkspace, uid, kv } from '@/lib/factory';
-import { insertNode, locate, mapNode, reidentify, removeNode } from '@/lib/tree';
+import { insertNode, locate, mapNode, reidentify, removeNode, setAllExpanded } from '@/lib/tree';
 import { fileJSONStorage } from '@/lib/fileStorage';
 
 interface WorkspaceState {
@@ -51,6 +51,7 @@ interface WorkspaceState {
   setWorkspaceIcon: (icon: string) => void;
   setMockServer: (config: MockServerConfig) => void;
   toggleNodePin: (collectionId: string, nodeId: string) => void;
+  setAllFoldersExpanded: (expanded: boolean) => void;
 }
 
 const touch = (ws: Workspace): Workspace => ({ ...ws, updatedAt: Date.now() });
@@ -245,6 +246,12 @@ export const useWorkspaces = create<WorkspaceState>()(
             items: mapNode(c.items, nodeId, (node) =>
               node.type === 'folder' ? node : { ...node, pinned: !node.pinned },
             ),
+          })),
+
+        setAllFoldersExpanded: (expanded) =>
+          patchActive((ws) => ({
+            ...ws,
+            collections: ws.collections.map((c) => ({ ...c, expanded, items: setAllExpanded(c.items, expanded) })),
           })),
       };
     },

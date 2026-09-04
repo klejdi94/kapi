@@ -9,7 +9,9 @@ export type ConsoleKind =
   | 'ws-send'
   | 'ws-receive'
   | 'ws-close'
-  | 'mock-hit';
+  | 'mock-hit'
+  | 'script'
+  | 'script-error';
 
 export interface ConsoleEntry {
   id: string;

@@ -7,18 +7,12 @@ import { useHistory } from '@/store/history';
 import { exportPostmanCollection, exportPostmanEnvironment } from '@/lib/exporters/postman';
 import { exportHar } from '@/lib/exporters/har';
 import { toast } from '@/lib/toast';
+import { saveFile } from '@/lib/saveFile';
 
 type Format = 'postman' | 'har' | 'kapi';
 
-function download(filename: string, content: string, mime = 'application/json') {
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
+const download = (filename: string, content: unknown) =>
+  saveFile(filename, JSON.stringify(content, null, 2), 'application/json');
 
 export function ExportModal({ open, onClose, collectionId }: { open: boolean; onClose: () => void; collectionId: string | null }) {
   const workspace = useActiveWorkspace();
@@ -33,30 +27,32 @@ export function ExportModal({ open, onClose, collectionId }: { open: boolean; on
 
   if (!collection && collectionId) return null;
 
-  const doExport = () => {
+  const doExport = async () => {
     if (collection) {
-      if (format === 'postman') {
-        download(`${collection.name}.postman_collection.json`, JSON.stringify(exportPostmanCollection(collection), null, 2));
-      } else if (format === 'kapi') {
-        download(`${collection.name}.kapi.json`, JSON.stringify(collection, null, 2));
-      } else if (format === 'har') {
-        download('history.har', JSON.stringify(exportHar(entries.slice(0, 500).map((request) => ({ request }))), null, 2));
-      }
-      toast.success('Exported', collection.name);
+      const saved =
+        format === 'postman'
+          ? await download(`${collection.name}.postman_collection.json`, exportPostmanCollection(collection))
+          : format === 'kapi'
+            ? await download(`${collection.name}.kapi.json`, collection)
+            : await download('history.har', exportHar(entries.slice(0, 500).map((request) => ({ request }))));
+      if (saved === null) return;
+      toast.success('Exported', saved || collection.name);
     } else {
       // Whole-workspace export: every collection + every environment, kapi-native.
       const payload = { workspace, exportedAt: new Date().toISOString(), format: 'kapi/1' };
-      download(`${workspace.name}.kapi-workspace.json`, JSON.stringify(payload, null, 2));
-      toast.success('Exported workspace', workspace.name);
+      const saved = await download(`${workspace.name}.kapi-workspace.json`, payload);
+      if (saved === null) return;
+      toast.success('Exported workspace', saved || workspace.name);
     }
     onClose();
   };
 
-  const exportEnvironment = (envId: string) => {
+  const exportEnvironment = async (envId: string) => {
     const env = workspace.environments.find((e) => e.id === envId);
     if (!env) return;
-    download(`${env.name}.postman_environment.json`, JSON.stringify(exportPostmanEnvironment(env), null, 2));
-    toast.success('Exported environment', env.name);
+    const saved = await download(`${env.name}.postman_environment.json`, exportPostmanEnvironment(env));
+    if (saved === null) return;
+    toast.success('Exported environment', saved || env.name);
   };
 
   return (

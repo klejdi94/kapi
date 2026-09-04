@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  ChevronRight, Copy, Download, FilePlus, FolderPlus, MoreHorizontal, Pencil, Pin, Play, Plug, Trash2,
+  Braces, ChevronRight, Copy, Download, FilePlus, FolderPlus, MoreHorizontal, Pencil, Pin, Play, Plug, Trash2,
 } from 'lucide-react';
 import clsx from 'clsx';
 import type { Collection, FolderNode, RequestNode, TreeNode, WebSocketNode } from '@/types';
@@ -94,6 +94,7 @@ export function CollectionTree({ collection }: { collection: Collection }) {
               { label: 'New WebSocket', icon: <Plug size={12} />, onSelect: () => addNode(collection.id, null, newWebSocketNode()) },
               { label: 'New folder', icon: <FolderPlus size={12} />, onSelect: () => addNode(collection.id, null, newFolder()) },
               { label: 'Rename', icon: <Pencil size={12} />, onSelect: () => setRenaming(collection.id), separatorAbove: true },
+              { label: 'Scripts…', icon: <Braces size={12} />, onSelect: () => window.dispatchEvent(new CustomEvent('kapi:collection-scripts', { detail: collection.id })) },
               { label: 'Export collection', icon: <Download size={12} />, onSelect: () => window.dispatchEvent(new CustomEvent('kapi:export-collection', { detail: collection.id })) },
               {
                 label: 'Delete collection', icon: <Trash2 size={12} />, danger: true, separatorAbove: true,

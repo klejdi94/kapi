@@ -6,6 +6,7 @@ import { DiffView } from './DiffView';
 import { toast } from '@/lib/toast';
 import * as git from '@/lib/git';
 import { ensureRepo, readPanelState, readSnapshot, writeSnapshot, type GitPanelState } from '@/lib/gitWorkspace';
+import { confirmAction } from '@/lib/confirm';
 
 export function GitPanel() {
   const workspace = useActiveWorkspace();
@@ -58,9 +59,10 @@ export function GitPanel() {
       }
       const existing = await readSnapshot(folder);
       if (existing) {
-        const loadExisting = confirm(
+        const loadExisting = await confirmAction(
           `This folder already has a kapi workspace ("${existing.name}", ${existing.collections.length} collection(s)).\n\n` +
             'Load it into kapi (replacing what\'s open now)? Cancel to overwrite the folder with what\'s open now instead.',
+          { okLabel: 'Load it' },
         );
         if (loadExisting) {
           replaceCollections(existing.collections);
@@ -75,8 +77,8 @@ export function GitPanel() {
     }
   };
 
-  const unlink = () => {
-    if (!confirm('Unlink this workspace from its git folder? The folder itself is untouched.')) return;
+  const unlink = async () => {
+    if (!(await confirmAction('Unlink this workspace from its git folder? The folder itself is untouched.', { okLabel: 'Unlink' }))) return;
     setGitRepoPath(null);
   };
 

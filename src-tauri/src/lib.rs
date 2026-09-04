@@ -20,6 +20,17 @@ fn kapi_write_text_file(path: String, contents: String) -> Result<(), String> {
     fs::write(target, contents).map_err(|e| e.to_string())
 }
 
+/// Same trust rationale as the text writer — used to save response bodies and
+/// exports, which are bytes rather than a string (images, PDFs, archives).
+#[tauri::command]
+fn kapi_write_binary_file(path: String, contents: Vec<u8>) -> Result<(), String> {
+    let target = Path::new(&path);
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(target, contents).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn kapi_read_text_file(path: String) -> Result<String, String> {
     fs::read_to_string(&path).map_err(|e| e.to_string())
@@ -40,6 +51,7 @@ pub fn run() {
     .manage(MockState::default())
     .invoke_handler(tauri::generate_handler![
       kapi_write_text_file,
+      kapi_write_binary_file,
       kapi_read_text_file,
       kapi_path_exists,
       kapi_mock_start,

@@ -1,4 +1,4 @@
-import { FolderPlus, Pin, Search } from 'lucide-react';
+import { ChevronsDownUp, ChevronsUpDown, FolderPlus, Pin, PinOff, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { WorkspaceSwitcher } from '@/components/sidebar/WorkspaceSwitcher';
 import { CollectionTree } from '@/components/sidebar/CollectionTree';
@@ -10,7 +10,7 @@ import { AiPanel } from '@/components/ai/AiPanel';
 import { IconButton } from '@/components/ui/primitives';
 import { useSession } from '@/store/session';
 import { useActiveWorkspace, useWorkspaces } from '@/store/workspaces';
-import { allRequests, walk } from '@/lib/tree';
+import { allRequests, hasCollapsedFolder, walk } from '@/lib/tree';
 import { methodVar } from '@/lib/methodColor';
 import type { RequestNode, WebSocketNode } from '@/types';
 
@@ -22,6 +22,8 @@ export function Sidebar({ onOpenImport, onOpenExport }: { onOpenImport: () => vo
   const panel = useSession((s) => s.sidebarPanel);
   const workspace = useActiveWorkspace();
   const addCollection = useWorkspaces((s) => s.addCollection);
+  const setAllFoldersExpanded = useWorkspaces((s) => s.setAllFoldersExpanded);
+  const toggleNodePin = useWorkspaces((s) => s.toggleNodePin);
   const openRequestNode = useSession((s) => s.openRequestNode);
   const openWebSocketNode = useSession((s) => s.openWebSocketNode);
   const [query, setQuery] = useState('');
@@ -34,6 +36,11 @@ export function Sidebar({ onOpenImport, onOpenExport }: { onOpenImport: () => vo
           .map((r) => ({ ...r, collection: c })),
       )
     : [];
+
+  const anyCollapsed = useMemo(
+    () => workspace.collections.some((c) => !c.expanded || hasCollapsedFolder(c.items)),
+    [workspace.collections],
+  );
 
   const pinned = useMemo(() => {
     const out: PinnedEntry[] = [];
@@ -57,9 +64,17 @@ export function Sidebar({ onOpenImport, onOpenExport }: { onOpenImport: () => vo
       <div className="flex items-center justify-between gap-1 border-b border-line px-2.5 py-1.5">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-faint">{PANEL_TITLE[panel]}</span>
         {panel === 'collections' && (
-          <IconButton label="New collection" onClick={() => addCollection()}>
-            <FolderPlus size={13} />
-          </IconButton>
+          <div className="flex items-center gap-0.5">
+            <IconButton
+              label={anyCollapsed ? 'Expand all folders' : 'Collapse all folders'}
+              onClick={() => setAllFoldersExpanded(anyCollapsed)}
+            >
+              {anyCollapsed ? <ChevronsUpDown size={13} /> : <ChevronsDownUp size={13} />}
+            </IconButton>
+            <IconButton label="New collection" onClick={() => addCollection()}>
+              <FolderPlus size={13} />
+            </IconButton>
+          </div>
         )}
       </div>
 
@@ -106,19 +121,24 @@ export function Sidebar({ onOpenImport, onOpenExport }: { onOpenImport: () => vo
                     <Pin size={10} /> Pinned
                   </div>
                   {pinned.map((entry) => (
-                    <button
-                      key={entry.node.id}
-                      onClick={() => openPinned(entry)}
-                      className="flex h-7 w-full items-center gap-2 rounded px-2 text-left hover:bg-surface-3"
-                    >
-                      <span
-                        className="w-9 shrink-0 text-right text-[9.5px] font-bold"
-                        style={{ color: entry.node.type === 'websocket' ? 'var(--info)' : methodVar(entry.node.request.method) }}
+                    <div key={entry.node.id} className="group flex h-7 items-center rounded pr-1 hover:bg-surface-3">
+                      <button onClick={() => openPinned(entry)} className="flex h-full min-w-0 flex-1 items-center gap-2 px-2 text-left">
+                        <span
+                          className="w-9 shrink-0 text-right text-[9.5px] font-bold"
+                          style={{ color: entry.node.type === 'websocket' ? 'var(--info)' : methodVar(entry.node.request.method) }}
+                        >
+                          {entry.node.type === 'websocket' ? 'WS' : entry.node.request.method.slice(0, 4)}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-[12.5px] text-dim">{entry.node.name}</span>
+                      </button>
+                      <button
+                        title={`Unpin "${entry.node.name}"`}
+                        onClick={() => toggleNodePin(entry.collectionId, entry.node.id)}
+                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-faint opacity-0 hover:bg-surface-2 hover:text-fg group-hover:opacity-100"
                       >
-                        {entry.node.type === 'websocket' ? 'WS' : entry.node.request.method.slice(0, 4)}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-[12.5px] text-dim">{entry.node.name}</span>
-                    </button>
+                        <PinOff size={11} />
+                      </button>
+                    </div>
                   ))}
                 </div>
               )}
