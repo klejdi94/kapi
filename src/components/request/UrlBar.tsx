@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { ChevronDown, Code2, History, Loader2, Send, Star, X } from 'lucide-react';
+import { useLayoutEffect, useRef, useState } from 'react';
+import { ChevronDown, Code2, History, Loader2, Send, Star, TriangleAlert, X } from 'lucide-react';
 import { MethodSelect } from './MethodSelect';
 import { IconButton } from '@/components/ui/primitives';
+import { useSession } from '@/store/session';
 import type { HttpMethod } from '@/types';
 
 export function UrlBar({
@@ -32,6 +33,16 @@ export function UrlBar({
   invalidVars: string[];
 }) {
   const [focused, setFocused] = useState(false);
+  const setSidebar = useSession((s) => s.set);
+  const badgeRef = useRef<HTMLSpanElement>(null);
+  const [badgeWidth, setBadgeWidth] = useState(0);
+
+  const badgeVisible = !focused && invalidVars.length > 0;
+
+  // Measured rather than guessed: the label grows with the variable count.
+  useLayoutEffect(() => {
+    setBadgeWidth(badgeVisible && badgeRef.current ? badgeRef.current.offsetWidth + 18 : 0);
+  }, [badgeVisible, invalidVars.length]);
 
   return (
     <div className="flex items-stretch gap-2 px-3 py-2.5">
@@ -54,11 +65,19 @@ export function UrlBar({
             placeholder="https://api.example.com/v1/resource or paste a cURL command"
             spellCheck={false}
             autoComplete="off"
-            className="h-9 w-full border-y border-r border-line bg-surface px-3 font-mono text-[12.5px] text-fg placeholder:font-sans placeholder:text-faint focus:border-accent focus:outline-none focus:ring-1 focus:ring-inset focus:ring-accent"
+            // The badge sits on top of the text, so the input has to give up
+            // room for it or a long URL runs straight underneath.
+            style={badgeVisible ? { paddingRight: `${badgeWidth}px` } : undefined}
+            className="h-9 w-full border-y border-r border-line bg-surface px-3 font-mono text-[12.5px] text-fg transition-[border-color,box-shadow] duration-150 placeholder:font-sans placeholder:text-faint focus:border-accent focus:outline-none focus:ring-1 focus:ring-inset focus:ring-accent"
           />
-          {!focused && invalidVars.length > 0 && (
+          {badgeVisible && (
             <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-              <span title={`Undefined: ${invalidVars.join(', ')}`} className="rounded bg-warn/15 px-1.5 py-0.5 text-[10px] font-semibold text-warn">
+              <span
+                ref={badgeRef}
+                title={`Undefined variable${invalidVars.length === 1 ? '' : 's'}: ${invalidVars.join(', ')}`}
+                className="animate-in flex items-center gap-1 rounded bg-warn/15 px-1.5 py-0.5 text-[10px] font-semibold text-warn"
+              >
+                <TriangleAlert size={9} />
                 {invalidVars.length} undefined
               </span>
             </div>
@@ -66,8 +85,12 @@ export function UrlBar({
         </div>
         <button
           type="button"
-          className="flex h-9 w-8 items-center justify-center rounded-r-md border border-l-0 border-line bg-surface text-faint hover:bg-surface-2 hover:text-fg"
-          title="Request history for this URL"
+          onClick={() => {
+            setSidebar('sidebarPanel', 'history');
+            setSidebar('sidebarOpen', true);
+          }}
+          className="flex h-9 w-8 items-center justify-center rounded-r-md border border-l-0 border-line bg-surface text-faint transition-colors duration-100 hover:bg-surface-2 hover:text-fg"
+          title="Show request history"
         >
           <ChevronDown size={14} />
         </button>
@@ -76,7 +99,7 @@ export function UrlBar({
       {loading ? (
         <button
           onClick={onCancel}
-          className="flex h-9 items-center gap-1.5 rounded-md bg-danger px-3.5 text-[12.5px] font-semibold text-white hover:brightness-110"
+          className="breathe flex h-9 items-center gap-1.5 rounded-md bg-danger px-3.5 text-[12.5px] font-semibold text-white transition-transform duration-100 hover:brightness-110 active:scale-[0.97]"
         >
           <X size={14} />
           Cancel
@@ -84,9 +107,9 @@ export function UrlBar({
       ) : (
         <button
           onClick={onSend}
-          className="flex h-9 items-center gap-1.5 rounded-md bg-accent px-4 text-[12.5px] font-semibold text-accent-fg shadow-sm hover:brightness-110 active:brightness-95"
+          className="group flex h-9 items-center gap-1.5 rounded-md bg-accent px-4 text-[12.5px] font-semibold text-accent-fg shadow-sm transition-[filter,transform,box-shadow] duration-100 hover:-translate-y-px hover:shadow-md hover:brightness-110 active:translate-y-0 active:scale-[0.97]"
         >
-          <Send size={13} />
+          <Send size={13} className="transition-transform duration-150 group-hover:translate-x-0.5" />
           Send
         </button>
       )}

@@ -20,7 +20,7 @@ export function ToastHost() {
         return (
           <div
             key={t.id}
-            className="animate-in pointer-events-auto flex items-start gap-2.5 rounded-lg border border-line bg-surface-2 p-3 shadow-lg"
+            className="animate-rise pointer-events-auto transition-shadow duration-150 hover:shadow-xl flex items-start gap-2.5 rounded-lg border border-line bg-surface-2 p-3 shadow-lg"
             style={{ boxShadow: 'var(--shadow)' }}
           >
             <Icon size={16} className={`mt-0.5 shrink-0 ${TONES[t.kind]}`} />

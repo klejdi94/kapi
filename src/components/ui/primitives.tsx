@@ -8,7 +8,8 @@ type ButtonSize = 'sm' | 'md';
 
 const BUTTON_BASE =
   'inline-flex items-center justify-center gap-1.5 rounded-md font-medium whitespace-nowrap ' +
-  'transition-[background-color,border-color,color,opacity] duration-100 disabled:opacity-40 disabled:pointer-events-none select-none';
+  'transition-[background-color,border-color,color,opacity,transform] duration-100 active:scale-[0.97] ' +
+  'disabled:opacity-40 disabled:pointer-events-none disabled:active:scale-100 select-none';
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   primary: 'bg-accent text-accent-fg hover:brightness-110 active:brightness-95 shadow-sm',

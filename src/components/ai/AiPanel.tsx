@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bot, Plus, Sparkles, Terminal, Trash2 } from 'lucide-react';
+import clsx from 'clsx';
+import { Bot, Check, Copy, CornerDownLeft, Plus, Sparkles, Terminal, Trash2 } from 'lucide-react';
 import { Button, EmptyState } from '@/components/ui/primitives';
 import { Thinking } from '@/components/ui/Thinking';
 import { useAiChat } from '@/store/aiChat';
@@ -8,8 +9,15 @@ import { extractAiRequest, stripAiRequestBlock } from '@/lib/aiRequestParse';
 import { useSession } from '@/store/session';
 import { useWorkspaces } from '@/store/workspaces';
 import { newRequestNode } from '@/lib/factory';
+import { methodVar } from '@/lib/methodColor';
 import { toast } from '@/lib/toast';
 import type { RequestDef } from '@/types';
+
+const STARTERS = [
+  'A GET to the GitHub API for a user’s public repos',
+  'POST a new order with a JSON body and bearer auth',
+  'A paginated search endpoint with query params',
+];
 
 export function AiPanel() {
   const messages = useAiChat((s) => s.messages);
@@ -30,7 +38,7 @@ export function AiPanel() {
   }, []);
 
   useEffect(() => {
-    logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
+    logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages.length, loading]);
 
   if (!claudeAvailable()) {
@@ -53,12 +61,12 @@ export function AiPanel() {
     );
   }
 
-  const send = async () => {
-    const text = draft.trim();
-    if (!text || loading) return;
+  const ask = async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || loading) return;
     setDraft('');
-    const history = [...messages, { role: 'user' as const, text }];
-    addMessage({ role: 'user', text });
+    const history = [...messages, { role: 'user' as const, text: trimmed }];
+    addMessage({ role: 'user', text: trimmed });
     setLoading(true);
     try {
       const reply = await askClaude(history);
@@ -86,7 +94,7 @@ export function AiPanel() {
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-line px-2.5 py-1.5">
         <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-faint">
-          <Sparkles size={11} /> Ask Claude
+          <Sparkles size={11} className={loading ? 'text-accent' : undefined} /> Ask Claude
         </span>
         <div className="flex items-center gap-0.5">
           <Button size="sm" onClick={() => openTab()}>
@@ -100,37 +108,72 @@ export function AiPanel() {
         </div>
       </div>
 
+      {/* Always-present strip, so the panel still reads as working when the
+          newest turn has scrolled out of view. */}
+      <div className="h-0.5 shrink-0 overflow-hidden">{loading && <div className="shimmer h-full w-full" />}</div>
+
       <div ref={logRef} className="min-h-0 flex-1 overflow-y-auto p-3">
         {messages.length === 0 ? (
-          <EmptyState
-            icon={<Bot size={22} />}
-            title="Describe the request you want"
-            detail={'Try: "a GET to the GitHub API for a user\'s public repos" or paste a curl command and ask for tweaks.'}
-          />
+          <div className="flex flex-col gap-3">
+            <EmptyState
+              icon={<Bot size={22} />}
+              title="Describe the request you want"
+              detail="Claude replies with a ready-to-send request you can drop straight into a collection. Pasting a curl command works too."
+            />
+            <div className="flex flex-col gap-1.5">
+              {STARTERS.map((starter, i) => (
+                <button
+                  key={starter}
+                  onClick={() => ask(starter)}
+                  style={{ animationDelay: `${i * 45}ms`, animationFillMode: 'backwards' }}
+                  className="animate-rise rounded-md border border-line bg-surface px-2.5 py-2 text-left text-[12px] text-dim transition-all duration-100 hover:-translate-y-px hover:border-accent hover:text-fg"
+                >
+                  {starter}
+                </button>
+              ))}
+            </div>
+          </div>
         ) : (
           <div className="flex flex-col gap-3">
             {messages.map((m, i) => (
               <ChatBubble key={i} turn={m} onUseRequest={useRequest} />
             ))}
-            {loading && <Thinking />}
+            {loading && (
+              <div className="animate-rise flex items-center gap-2">
+                <span className="dot-pulse flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                </span>
+                <Thinking label="Claude is thinking…" />
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      <div className="flex items-end gap-2 border-t border-line p-3">
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder={loading ? 'Claude is still replying — you can keep typing…' : 'Describe the API call you want…'}
-          rows={2}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send();
-          }}
-          className="h-14 flex-1 resize-none rounded-md border border-line bg-surface p-2 text-[12.5px] focus:border-accent focus:outline-none"
-        />
-        <Button variant="primary" onClick={send} disabled={loading || !draft.trim()}>
-          Send
-        </Button>
+      <div className="border-t border-line p-3">
+        <div
+          className={clsx(
+            'flex items-end gap-2 rounded-md border bg-surface p-1.5 transition-colors duration-150 focus-within:border-accent',
+            loading ? 'border-accent/40' : 'border-line',
+          )}
+        >
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={loading ? 'Claude is still replying — you can keep typing…' : 'Describe the API call you want…'}
+            rows={2}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) ask(draft);
+            }}
+            className="h-12 flex-1 resize-none bg-transparent px-1 text-[12.5px] focus:outline-none"
+          />
+          <Button variant="primary" onClick={() => ask(draft)} disabled={loading || !draft.trim()}>
+            <CornerDownLeft size={12} /> Send
+          </Button>
+        </div>
+        <p className="mt-1.5 px-1 text-[10.5px] text-faint">⌘↵ to send · runs through your own claude CLI</p>
       </div>
     </div>
   );
@@ -140,23 +183,43 @@ function ChatBubble({ turn, onUseRequest }: { turn: { role: 'user' | 'assistant'
   const isUser = turn.role === 'user';
   const request = !isUser ? extractAiRequest(turn.text) : null;
   const displayText = isUser ? turn.text : stripAiRequestBlock(turn.text);
+  const [copied, setCopied] = useState(false);
+
+  const copy = () => {
+    navigator.clipboard.writeText(turn.text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  };
 
   return (
-    <div className={`flex flex-col gap-1.5 ${isUser ? 'items-end' : 'items-start'}`}>
+    <div className={`animate-rise group flex flex-col gap-1.5 ${isUser ? 'items-end' : 'items-start'}`}>
       <div
-        className={`max-w-[90%] rounded-lg px-3 py-2 text-[12.5px] leading-relaxed whitespace-pre-wrap ${
-          isUser ? 'bg-accent text-accent-fg' : 'bg-surface-2 text-fg'
+        className={`max-w-[92%] whitespace-pre-wrap rounded-lg px-3 py-2 text-[12.5px] leading-relaxed transition-shadow duration-150 ${
+          isUser ? 'bg-accent text-accent-fg' : 'bg-surface-2 text-fg hover:shadow-sm'
         }`}
       >
         {displayText || (request ? 'Here’s a request for that:' : '')}
       </div>
+
+      {!isUser && (
+        <button
+          onClick={copy}
+          title="Copy reply"
+          className="flex items-center gap-1 px-1 text-[10.5px] text-faint opacity-0 transition-opacity duration-100 hover:text-dim group-hover:opacity-100"
+        >
+          {copied ? <Check size={10} className="text-ok" /> : <Copy size={10} />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      )}
+
       {request && (
-        <div className="flex items-center gap-2 rounded-md border border-line bg-surface-2 px-2.5 py-1.5">
-          <span className="font-mono text-[11.5px] text-dim">
-            {request.method} {request.url}
+        <div className="animate-rise flex w-full items-center gap-2 rounded-md border border-line bg-surface-2 px-2.5 py-1.5 transition-colors duration-150 hover:border-accent">
+          <span className="shrink-0 text-[10px] font-bold" style={{ color: methodVar(request.method) }}>
+            {request.method}
           </span>
+          <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-dim">{request.url}</span>
           <Button size="sm" variant="primary" onClick={() => onUseRequest(request)}>
-            Use this request
+            Use
           </Button>
         </div>
       )}

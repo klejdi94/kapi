@@ -21,7 +21,7 @@ import { ConsolePanel } from '@/components/console/ConsolePanel';
 import { useSession, useActiveTab } from '@/store/session';
 import { useConsole } from '@/store/console';
 import { onMockHit } from '@/lib/mock';
-import { formatDuration } from '@/lib/format';
+import { formatBytes, formatDuration } from '@/lib/format';
 import { toggleTheme } from '@/lib/theme';
 import { isDesktop } from '@/lib/transport';
 import { listen } from '@tauri-apps/api/event';
@@ -37,7 +37,7 @@ import { responseToExample, exampleToResponse } from '@/lib/examples';
 import { runScript, responseToScriptInput, type ScriptContext, type TestResult } from '@/lib/scripting';
 import { useTestResults } from '@/store/testResults';
 import { withTrailingBlank } from '@/lib/factory';
-import type { KV, RequestDef, SavedExample, WebSocketRequestDef } from '@/types';
+import type { KapiResponse, KV, RequestDef, SavedExample, SentRequest, WebSocketRequestDef } from '@/types';
 import { FileDown, X } from 'lucide-react';
 
 /** The three writable variable scopes a script can touch, threaded between chained scripts. */
@@ -83,6 +83,50 @@ function chainScripts(
 }
 
 const EMPTY_TESTS: TestResult[] = [];
+
+/** Console entries carry whole bodies; this only guards against a pathological one. */
+const CONSOLE_BODY_LIMIT = 250_000;
+
+function clip(text: string): string {
+  return text.length > CONSOLE_BODY_LIMIT
+    ? `${text.slice(0, CONSOLE_BODY_LIMIT)}\n\n… ${text.length - CONSOLE_BODY_LIMIT} more characters not shown`
+    : text;
+}
+
+const headerLines = (headers: [string, string][]) =>
+  headers.length ? headers.map(([name, value]) => `${name}: ${value}`).join('\n') : '(no headers)';
+
+/** The exact request that went on the wire — resolved variables, auth and all. */
+function describeSent(sent: SentRequest): string {
+  const body = sent.bodyText?.length
+    ? `\n\n--- request body (${sent.bodyKind}) ---\n${clip(sent.bodyText)}`
+    : sent.bodyKind === 'none'
+      ? '\n\n(no request body)'
+      : `\n\n(request body of type ${sent.bodyKind} is not textual)`;
+  return `${sent.method} ${sent.url}\n\n--- request headers ---\n${headerLines(sent.headers)}${body}`;
+}
+
+/** Request and response side by side, so one console row is the whole exchange. */
+function describeExchange(response: KapiResponse): string {
+  const body = response.binary
+    ? `(binary body, ${formatBytes(response.size.body)} — open the Preview tab to view it)`
+    : response.text.length
+      ? clip(response.text)
+      : '(empty body)';
+  return [
+    describeSent(response.sent),
+    '',
+    `--- response ---`,
+    `${response.status} ${response.statusText}${response.redirected ? `  (redirected → ${response.finalUrl})` : ''}`,
+    `${formatDuration(response.timings.total)} total · ${formatDuration(response.timings.ttfb)} to first byte · ${formatBytes(response.size.body)}`,
+    '',
+    '--- response headers ---',
+    headerLines(response.headers),
+    '',
+    '--- response body ---',
+    body,
+  ].join('\n');
+}
 
 export default function App() {
   const tabs = useSession((s) => s.tabs);
@@ -229,20 +273,26 @@ export default function App() {
     const controller = new AbortController();
     begin(activeTab.id, controller);
     useTestResults.getState().clear(activeTab.id);
-    useConsole.getState().log({
-      kind: 'http-request',
-      summary: `→ ${request.method} ${request.url}`,
-      detail: `${request.method} ${request.url}\n\n${request.headers.filter((h) => h.enabled && h.key).map((h) => `${h.key}: ${h.value}`).join('\n')}`,
-      tabName: activeTab.name,
+    let sentForLog: SentRequest | null = null;
+    const result = await send(request, sendScope, {
+      signal: controller.signal,
+      onPrepared: (sent) => {
+        sentForLog = sent;
+        useConsole.getState().log({
+          kind: 'http-request',
+          summary: `→ ${sent.method} ${sent.url}`,
+          detail: describeSent(sent),
+          tabName: activeTab.name,
+        });
+      },
     });
-    const result = await send(request, sendScope, { signal: controller.signal });
     finish(activeTab.id, result);
     if (result.ok) {
       const r = result.response;
       useConsole.getState().log({
         kind: 'http-response',
-        summary: `← ${r.status} ${request.method} ${request.url} · ${formatDuration(r.timings.total)}`,
-        detail: `${r.status} ${r.statusText}\n\n${r.headers.map(([k, v]) => `${k}: ${v}`).join('\n')}\n\n${r.binary ? '<binary body>' : r.text.slice(0, 5000)}`,
+        summary: `← ${r.status} ${request.method} ${r.finalUrl} · ${formatDuration(r.timings.total)} · ${formatBytes(r.size.body)}`,
+        detail: describeExchange(r),
         tabName: activeTab.name,
       });
       const post = chainScripts([collection?.testScript, activeTab.request.testScript], pre.vars, {
@@ -265,7 +315,13 @@ export default function App() {
       useConsole.getState().log({
         kind: 'http-error',
         summary: `✕ ${request.method} ${request.url} — ${result.error.title}`,
-        detail: result.error.detail,
+        // Includes what was sent: a failed request is exactly when you need to
+        // see the headers and body that produced the failure.
+        detail: [
+          `${result.error.title} (${result.error.kind}) after ${formatDuration(result.error.elapsed)}`,
+          result.error.detail,
+          ...(sentForLog ? ['', describeSent(sentForLog)] : []),
+        ].join('\n'),
         tabName: activeTab.name,
       });
     }

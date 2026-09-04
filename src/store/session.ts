@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { RequestDef, RequestTabKey, ResponseView, Tab, WebSocketRequestDef } from '@/types';
 import { newTab } from '@/lib/factory';
+import { withUrlParams } from '@/lib/send';
 import { fileJSONStorage } from '@/lib/fileStorage';
 
 export type SidebarPanel = 'collections' | 'environments' | 'history' | 'git' | 'mock' | 'ai';
@@ -54,6 +55,7 @@ export const useSession = create<SessionState>()(
 
       openTab: (partial) => {
         const tab = newTab(partial);
+        tab.request = withUrlParams(tab.request);
         setState((state) => ({ tabs: [...state.tabs, tab], activeTabId: tab.id }));
         return tab.id;
       },
@@ -65,7 +67,7 @@ export const useSession = create<SessionState>()(
           setState({ activeTabId: existing.id });
           return existing.id;
         }
-        const tab = newTab({ nodeId, collectionId, name, request: structuredClone(request) });
+        const tab = newTab({ nodeId, collectionId, name, request: withUrlParams(structuredClone(request)) });
         setState((state) => ({ tabs: [...state.tabs, tab], activeTabId: tab.id }));
         return tab.id;
       },

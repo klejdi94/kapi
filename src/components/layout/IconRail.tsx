@@ -30,7 +30,7 @@ export function IconRail() {
             key={value}
             onClick={() => select(value)}
             title={label}
-            className={`flex w-15 flex-col items-center gap-1.5 rounded-md py-2 text-[10px] transition-colors ${
+            className={`relative flex w-15 flex-col items-center gap-1.5 rounded-md py-2 text-[10px] transition-all duration-150 active:scale-[0.97] ${
               active ? 'bg-accent/15 text-accent' : 'text-faint hover:bg-surface-3 hover:text-fg'
             }`}
           >
