@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
-import type { Collection, RequestDef, RequestTabKey } from '@/types';
+import type { Collection, KV, RequestDef, RequestTabKey } from '@/types';
 import { Segmented } from '@/components/ui/primitives';
 import { UrlBar } from './UrlBar';
-import { ParamsTab } from './ParamsTab';
+import { ParamsTab, type UrlVariable } from './ParamsTab';
 import { HeadersTab } from './HeadersTab';
 import { AuthTab } from './AuthTab';
 import { BodyTab } from './BodyTab';
@@ -13,9 +13,9 @@ import { mergeParamsFromUrl, pathVariableNames, unresolvedVariables } from '@/li
 import { AUTH_LABELS, effectiveAuth } from '@/lib/auth';
 import { ancestorsOf } from '@/lib/tree';
 import { buildBody } from '@/lib/body';
-import { buildScope, resolve as resolveVar } from '@/lib/variables';
+import { buildScope, collectUsages, resolve as resolveVar } from '@/lib/variables';
 import { useSession } from '@/store/session';
-import { useActiveWorkspace } from '@/store/workspaces';
+import { useActiveWorkspace, useWorkspaces } from '@/store/workspaces';
 import { parseCurl } from '@/lib/importers/curl';
 import { toast } from '@/lib/toast';
 
@@ -48,6 +48,8 @@ export function RequestEditor({
   const requestTab = useSession((s) => s.requestTab);
   const setRequestTab = useSession((s) => s.set);
   const workspace = useActiveWorkspace();
+  const updateEnvironment = useWorkspaces((s) => s.updateEnvironment);
+  const setGlobals = useWorkspaces((s) => s.setGlobals);
 
   const scope = useMemo(() => buildScope(workspace, collection), [workspace, collection]);
   const resolve = (text: string) => resolveVar(text, scope);
@@ -66,6 +68,32 @@ export function RequestEditor({
   const pathVarRows = detectedPathVars.map(
     (name) => request.pathVars.find((r) => r.key === name) ?? kv({ key: name, value: '' }),
   );
+
+  // `{{name}}` placeholders in the URL, listed with wherever they resolve from
+  // so an undefined one is fixable without hunting through Environments.
+  const urlVariables: UrlVariable[] = collectUsages([request.url], scope).map((usage) => ({
+    name: usage.name,
+    value: usage.entry?.value ?? '',
+    source: usage.entry ? usage.entry.origin : null,
+    dynamic: usage.entry?.source === 'dynamic',
+  }));
+
+  /**
+   * Writes into the active environment, falling back to globals when no
+   * environment is selected — the two scopes every request can see.
+   */
+  const setUrlVariable = (name: string, value: string) => {
+    const environment = workspace.environments.find((e) => e.id === workspace.activeEnvironmentId);
+    const upsert = (rows: KV[]) => {
+      const index = rows.findIndex((r) => r.key.trim() === name);
+      if (index === -1) return withTrailingBlank([...rows.filter((r) => r.key.trim()), kv({ key: name, value })]);
+      const next = [...rows];
+      next[index] = { ...next[index], value, enabled: true };
+      return next;
+    };
+    if (environment) updateEnvironment(environment.id, { variables: upsert(environment.variables) });
+    else setGlobals(upsert(workspace.globals));
+  };
 
   const builtBody = buildBody(request, scope);
   const autoHeaderPreview = request.settings.autoHeaders
@@ -138,6 +166,8 @@ export function RequestEditor({
           <ParamsTab
             params={request.params}
             pathVars={pathVarRows}
+            urlVariables={urlVariables}
+            onSetVariable={setUrlVariable}
             onParams={(params) => set('params', params)}
             onPathVars={(pathVars) => set('pathVars', withTrailingBlank(pathVars).slice(0, -1))}
             resolve={resolve}
