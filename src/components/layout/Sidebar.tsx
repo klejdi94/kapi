@@ -4,6 +4,7 @@ import { WorkspaceSwitcher } from '@/components/sidebar/WorkspaceSwitcher';
 import { CollectionTree } from '@/components/sidebar/CollectionTree';
 import { EnvironmentsPanel } from '@/components/sidebar/EnvironmentsPanel';
 import { HistoryPanel } from '@/components/sidebar/HistoryPanel';
+import { GitPanel } from '@/components/git/GitPanel';
 import { Segmented, IconButton } from '@/components/ui/primitives';
 import { useSession, type SidebarPanel } from '@/store/session';
 import { useActiveWorkspace, useWorkspaces } from '@/store/workspaces';
@@ -39,6 +40,7 @@ export function Sidebar({ onOpenImport, onOpenExport }: { onOpenImport: () => vo
             { value: 'collections', label: 'Collections' },
             { value: 'environments', label: 'Env' },
             { value: 'history', label: 'History' },
+            { value: 'git', label: 'Git' },
           ]}
         />
         {panel === 'collections' && (
@@ -95,6 +97,7 @@ export function Sidebar({ onOpenImport, onOpenExport }: { onOpenImport: () => vo
           ))}
         {panel === 'environments' && <EnvironmentsPanel />}
         {panel === 'history' && <HistoryPanel />}
+        {panel === 'git' && <GitPanel />}
       </div>
     </div>
   );

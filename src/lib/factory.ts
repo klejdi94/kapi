@@ -129,6 +129,7 @@ export function newWorkspace(name = 'New workspace'): Workspace {
     activeEnvironmentId: null,
     createdAt: Date.now(),
     updatedAt: Date.now(),
+    gitRepoPath: null,
   };
 }
 

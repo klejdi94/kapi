@@ -41,6 +41,10 @@ interface WorkspaceState {
   deleteEnvironment: (id: string) => void;
   setActiveEnvironment: (id: string | null) => void;
   setGlobals: (variables: KV[]) => void;
+
+  /* git */
+  setGitRepoPath: (path: string | null) => void;
+  replaceCollections: (collections: Collection[]) => void;
 }
 
 const touch = (ws: Workspace): Workspace => ({ ...ws, updatedAt: Date.now() });
@@ -216,6 +220,9 @@ export const useWorkspaces = create<WorkspaceState>()(
         setActiveEnvironment: (id) => patchActive((ws) => ({ ...ws, activeEnvironmentId: id })),
 
         setGlobals: (variables) => patchActive((ws) => ({ ...ws, globals: variables })),
+
+        setGitRepoPath: (path) => patchActive((ws) => ({ ...ws, gitRepoPath: path })),
+        replaceCollections: (collections) => patchActive((ws) => ({ ...ws, collections })),
       };
     },
     {
@@ -229,8 +236,12 @@ export const useWorkspaces = create<WorkspaceState>()(
           const seeded = seedWorkspace();
           state.workspaces = [seeded];
           state.activeWorkspaceId = seeded.id;
-        } else if (!state.workspaces.some((ws) => ws.id === state.activeWorkspaceId)) {
-          state.activeWorkspaceId = state.workspaces[0].id;
+        } else {
+          // Backfill fields added after some workspaces were already persisted.
+          state.workspaces = state.workspaces.map((ws) => ({ ...ws, gitRepoPath: ws.gitRepoPath ?? null }));
+          if (!state.workspaces.some((ws) => ws.id === state.activeWorkspaceId)) {
+            state.activeWorkspaceId = state.workspaces[0].id;
+          }
         }
       },
     },

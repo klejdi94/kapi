@@ -161,6 +161,8 @@ export interface Workspace {
   activeEnvironmentId: string | null;
   createdAt: number;
   updatedAt: number;
+  /** Absolute path to a local folder this workspace is synced to as a git repo. */
+  gitRepoPath: string | null;
 }
 
 /* ---------------------------------------------------------------- responses */

@@ -13,6 +13,13 @@
         { "url": "http://*/*" },
         { "url": "https://*/*" }
       ]
-    }
+    },
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        { "name": "git", "cmd": "git", "args": true }
+      ]
+    },
+    "dialog:default"
   ]
 }
