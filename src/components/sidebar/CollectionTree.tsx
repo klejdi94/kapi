@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import {
-  ChevronRight, Copy, Download, FilePlus, FolderPlus, MoreHorizontal, Pencil, Play, Trash2,
+  ChevronRight, Copy, Download, FilePlus, FolderPlus, MoreHorizontal, Pencil, Play, Plug, Trash2,
 } from 'lucide-react';
 import clsx from 'clsx';
-import type { Collection, FolderNode, RequestNode, TreeNode } from '@/types';
+import type { Collection, FolderNode, RequestNode, TreeNode, WebSocketNode } from '@/types';
 import { methodVar } from '@/lib/methodColor';
-import { newFolder, newRequestNode } from '@/lib/factory';
+import { newFolder, newRequestNode, newWebSocketNode } from '@/lib/factory';
 import { useWorkspaces } from '@/store/workspaces';
 import { useSession } from '@/store/session';
 import { ContextMenu, type MenuItem } from '@/components/ui/ContextMenu';
@@ -27,6 +27,7 @@ export function CollectionTree({ collection }: { collection: Collection }) {
   const updateNode = useWorkspaces((s) => s.updateNode);
   const moveNode = useWorkspaces((s) => s.moveNode);
   const openRequestNode = useSession((s) => s.openRequestNode);
+  const openWebSocketNode = useSession((s) => s.openWebSocketNode);
 
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -41,6 +42,8 @@ export function CollectionTree({ collection }: { collection: Collection }) {
 
   const openRequest = (node: RequestNode) =>
     openRequestNode({ nodeId: node.id, collectionId: collection.id, name: node.name, request: node.request });
+  const openWebSocket = (node: WebSocketNode) =>
+    openWebSocketNode({ nodeId: node.id, collectionId: collection.id, name: node.name, request: node.request });
 
   const handleDrop = (targetId: string | null, where: 'before' | 'after' | 'inside') => {
     if (!drag) return;
@@ -87,6 +90,7 @@ export function CollectionTree({ collection }: { collection: Collection }) {
           onContextMenu={(e) =>
             openMenu(e, [
               { label: 'New request', icon: <FilePlus size={12} />, onSelect: () => addNode(collection.id, null, newRequestNode()) },
+              { label: 'New WebSocket', icon: <Plug size={12} />, onSelect: () => addNode(collection.id, null, newWebSocketNode()) },
               { label: 'New folder', icon: <FolderPlus size={12} />, onSelect: () => addNode(collection.id, null, newFolder()) },
               { label: 'Rename', icon: <Pencil size={12} />, onSelect: () => setRenaming(collection.id), separatorAbove: true },
               { label: 'Export collection', icon: <Download size={12} />, onSelect: () => window.dispatchEvent(new CustomEvent('kapi:export-collection', { detail: collection.id })) },
@@ -116,6 +120,7 @@ export function CollectionTree({ collection }: { collection: Collection }) {
           onClick={(e) =>
             openMenu(e, [
               { label: 'New request', icon: <FilePlus size={12} />, onSelect: () => addNode(collection.id, null, newRequestNode()) },
+              { label: 'New WebSocket', icon: <Plug size={12} />, onSelect: () => addNode(collection.id, null, newWebSocketNode()) },
               { label: 'New folder', icon: <FolderPlus size={12} />, onSelect: () => addNode(collection.id, null, newFolder()) },
             ])
           }
@@ -139,6 +144,7 @@ export function CollectionTree({ collection }: { collection: Collection }) {
               setRenaming={setRenaming}
               openMenu={openMenu}
               openRequest={openRequest}
+              openWebSocket={openWebSocket}
               addNode={addNode}
               deleteNode={deleteNode}
               duplicateNode={duplicateNode}
@@ -186,6 +192,7 @@ function NodeRow({
   setRenaming,
   openMenu,
   openRequest,
+  openWebSocket,
   addNode,
   deleteNode,
   duplicateNode,
@@ -203,6 +210,7 @@ function NodeRow({
   setRenaming: (id: string | null) => void;
   openMenu: (e: React.MouseEvent, items: MenuItem[]) => void;
   openRequest: (node: RequestNode) => void;
+  openWebSocket: (node: WebSocketNode) => void;
   addNode: ReturnType<typeof useWorkspaces.getState>['addNode'];
   deleteNode: ReturnType<typeof useWorkspaces.getState>['deleteNode'];
   duplicateNode: ReturnType<typeof useWorkspaces.getState>['duplicateNode'];
@@ -215,7 +223,7 @@ function NodeRow({
 }) {
   const activeTabId = useSession((s) => s.activeTabId);
   const tabs = useSession((s) => s.tabs);
-  const isOpen = node.type === 'request' && tabs.some((t) => t.id === activeTabId && t.nodeId === node.id);
+  const isOpen = node.type !== 'folder' && tabs.some((t) => t.id === activeTabId && t.nodeId === node.id);
 
   const commonMenuItems = (): MenuItem[] => [
     { label: 'Rename', icon: <Pencil size={12} />, onSelect: () => setRenaming(node.id) },
@@ -277,6 +285,7 @@ function NodeRow({
             onContextMenu={(e) =>
               openMenu(e, [
                 { label: 'New request', icon: <FilePlus size={12} />, onSelect: () => addNode(collection.id, node.id, newRequestNode()) },
+                { label: 'New WebSocket', icon: <Plug size={12} />, onSelect: () => addNode(collection.id, node.id, newWebSocketNode()) },
                 { label: 'New folder', icon: <FolderPlus size={12} />, onSelect: () => addNode(collection.id, node.id, newFolder()) },
                 ...commonMenuItems(),
               ])
@@ -308,6 +317,7 @@ function NodeRow({
               setRenaming={setRenaming}
               openMenu={openMenu}
               openRequest={openRequest}
+              openWebSocket={openWebSocket}
               addNode={addNode}
               deleteNode={deleteNode}
               duplicateNode={duplicateNode}
@@ -323,7 +333,40 @@ function NodeRow({
     );
   }
 
-  const req = node as RequestNode;
+  if (node.type === 'websocket') {
+    const ws = node;
+    return (
+      <div className="relative">
+        {dropLine}
+        <div
+          draggable
+          onDragStart={() => setDrag({ collectionId: collection.id, nodeId: node.id })}
+          onDragEnd={() => { setDrag(null); setDropTarget(null); }}
+          onDragOver={onDragOverRow}
+          onDrop={onRowDrop}
+          onContextMenu={(e) => openMenu(e, [{ label: 'Open', icon: <Play size={12} />, onSelect: () => openWebSocket(ws) }, ...commonMenuItems()])}
+          onClick={() => openWebSocket(ws)}
+          className={clsx('group flex h-6.5 min-w-0 cursor-pointer items-center gap-1.5 rounded pr-1 hover:bg-surface-2', isOpen && 'bg-surface-2')}
+          style={{ paddingLeft: 4 + (depth + 1) * 14 }}
+        >
+          <Plug size={11} className="w-9 shrink-0 text-info" />
+          {renaming === node.id ? (
+            <RenameInput value={node.name} onCommit={(name) => { updateNode(collection.id, node.id, { name }); setRenaming(null); }} onCancel={() => setRenaming(null)} />
+          ) : (
+            <span className="min-w-0 flex-1 truncate text-[12.5px] text-dim group-hover:text-fg">{ws.name}</span>
+          )}
+          <button
+            className="flex h-5.5 w-5.5 shrink-0 items-center justify-center rounded text-faint opacity-0 hover:bg-surface-3 group-hover:opacity-100"
+            onClick={(e) => { e.stopPropagation(); openMenu(e, commonMenuItems()); }}
+          >
+            <MoreHorizontal size={11} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const req = node;
   return (
     <div className="relative">
       {dropLine}

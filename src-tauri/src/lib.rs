@@ -30,6 +30,7 @@ pub fn run() {
     .plugin(tauri_plugin_http::init())
     .plugin(tauri_plugin_shell::init())
     .plugin(tauri_plugin_dialog::init())
+    .plugin(tauri_plugin_websocket::init())
     .invoke_handler(tauri::generate_handler![
       kapi_write_text_file,
       kapi_read_text_file,

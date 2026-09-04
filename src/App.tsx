@@ -13,6 +13,7 @@ import { ImportModal } from '@/components/modals/ImportModal';
 import { SaveAsModal } from '@/components/modals/SaveAsModal';
 import { ExportModal } from '@/components/modals/ExportModal';
 import { CodeSnippetModal } from '@/components/modals/CodeSnippetModal';
+import { WsPanel } from '@/components/ws/WsPanel';
 import { useSession, useActiveTab } from '@/store/session';
 import { useActiveWorkspace, useWorkspaces, findCollection } from '@/store/workspaces';
 import { useHistory } from '@/store/history';
@@ -20,9 +21,9 @@ import { useResponses, useTabRun } from '@/store/responses';
 import { buildScope } from '@/lib/variables';
 import { resolveInheritedForNode } from '@/lib/inherit';
 import { send } from '@/lib/send';
-import { uid } from '@/lib/factory';
+import { uid, newWebSocketRequest } from '@/lib/factory';
 import { toast } from '@/lib/toast';
-import type { RequestDef } from '@/types';
+import type { RequestDef, WebSocketRequestDef } from '@/types';
 import { FileDown } from 'lucide-react';
 
 export default function App() {
@@ -41,6 +42,8 @@ export default function App() {
 
   const workspace = useActiveWorkspace();
   const updateRequest = useWorkspaces((s) => s.updateRequest);
+  const updateWebSocketRequest = useWorkspaces((s) => s.updateWebSocketRequest);
+  const updateTabWs = useSession((s) => s.updateTabWs);
   const addHistory = useHistory((s) => s.add);
 
   const begin = useResponses((s) => s.begin);
@@ -75,7 +78,7 @@ export default function App() {
   }, []);
 
   const doSend = async () => {
-    if (!activeTab) return;
+    if (!activeTab || activeTab.kind !== 'http') return;
     // The tab's own request may say `auth: 'inherit'` or rely on folder/collection
     // headers — resolve those before anything hits the wire.
     const request = resolveInheritedForNode(activeTab.request, collection, activeTab.nodeId);
@@ -102,10 +105,19 @@ export default function App() {
     updateTabRequest(activeTab.id, request);
   };
 
+  const onChangeWs = (ws: WebSocketRequestDef) => {
+    if (!activeTab) return;
+    updateTabWs(activeTab.id, ws);
+  };
+
   const onSave = () => {
     if (!activeTab) return;
     if (activeTab.nodeId && activeTab.collectionId) {
-      updateRequest(activeTab.collectionId, activeTab.nodeId, activeTab.request);
+      if (activeTab.kind === 'ws' && activeTab.ws) {
+        updateWebSocketRequest(activeTab.collectionId, activeTab.nodeId, activeTab.ws);
+      } else {
+        updateRequest(activeTab.collectionId, activeTab.nodeId, activeTab.request);
+      }
       patchTab(activeTab.id, { dirty: false });
       toast.success('Saved');
     } else {
@@ -132,7 +144,7 @@ export default function App() {
       } else if (mod && e.key.toLowerCase() === 'w') {
         e.preventDefault();
         if (activeTabId) closeTab(activeTabId);
-      } else if (mod && e.key === 'Enter') {
+      } else if (mod && e.key === 'Enter' && activeTab?.kind === 'http') {
         e.preventDefault();
         doSend();
       } else if (mod && e.key.toLowerCase() === 's') {
@@ -151,7 +163,8 @@ export default function App() {
   const extraCommands: Command[] = [
     { id: 'import', label: 'Import…', icon: <FileDown size={13} />, run: () => setImportOpen(true) },
     { id: 'export-workspace', label: 'Export workspace…', icon: <FileDown size={13} />, run: () => setExportCollectionId('workspace') },
-    ...(activeTab ? [{ id: 'generate-code', label: 'Generate code for this request…', icon: <FileDown size={13} />, run: () => setCodeOpen(true) }] : []),
+    { id: 'new-ws-tab', label: 'New WebSocket tab', icon: <FileDown size={13} />, run: () => openTab({ kind: 'ws', name: 'New WebSocket', ws: newWebSocketRequest() }) },
+    ...(activeTab?.kind === 'http' ? [{ id: 'generate-code', label: 'Generate code for this request…', icon: <FileDown size={13} />, run: () => setCodeOpen(true) }] : []),
   ];
 
   return (
@@ -168,7 +181,10 @@ export default function App() {
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <TabBar />
-          {activeTab && (
+          {activeTab && activeTab.kind === 'ws' && activeTab.ws && (
+            <WsPanel tabId={activeTab.id} request={activeTab.ws} onChange={onChangeWs} collection={collection} />
+          )}
+          {activeTab && activeTab.kind === 'http' && (
             <>
               <EnvironmentPicker collection={collection} />
               <LoadingBar active={run.loading} />
@@ -209,7 +225,7 @@ export default function App() {
         onClose={() => setExportCollectionId(null)}
         collectionId={exportCollectionId === 'workspace' ? null : exportCollectionId}
       />
-      {activeTab && (
+      {activeTab && activeTab.kind === 'http' && (
         <CodeSnippetModal
           open={codeOpen}
           onClose={() => setCodeOpen(false)}

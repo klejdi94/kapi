@@ -10,6 +10,8 @@ import type {
   RequestNode,
   RequestSettings,
   Tab,
+  WebSocketNode,
+  WebSocketRequestDef,
   Workspace,
 } from '@/types';
 
@@ -139,10 +141,24 @@ export function newTab(partial: Partial<Tab> = {}): Tab {
     nodeId: null,
     collectionId: null,
     name: 'Untitled request',
+    kind: 'http',
     request: newRequest({ auth: emptyAuth('none') }),
+    ws: null,
     dirty: false,
     ...partial,
   };
+}
+
+export function newWebSocketRequest(partial: Partial<WebSocketRequestDef> = {}): WebSocketRequestDef {
+  return { url: '', headers: [kv({ enabled: false })], protocols: [], defaultMessage: '', ...partial };
+}
+
+export function newWebSocketNode(name = 'New WebSocket', request?: Partial<WebSocketRequestDef>): WebSocketNode {
+  return { id: uid(), type: 'websocket', name, request: newWebSocketRequest(request) };
+}
+
+export function newWebSocketTab(partial: Partial<Tab> = {}): Tab {
+  return newTab({ kind: 'ws', name: 'New WebSocket', ws: newWebSocketRequest(), ...partial });
 }
 
 /**

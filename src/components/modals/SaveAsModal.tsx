@@ -3,7 +3,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Button, Field, Select } from '@/components/ui/primitives';
 import { useActiveWorkspace, useWorkspaces } from '@/store/workspaces';
 import { useSession } from '@/store/session';
-import { newRequestNode } from '@/lib/factory';
+import { newRequestNode, newWebSocketNode } from '@/lib/factory';
 import { toast } from '@/lib/toast';
 
 export function SaveAsModal({ open, onClose, tabId }: { open: boolean; onClose: () => void; tabId: string | null }) {
@@ -27,12 +27,12 @@ export function SaveAsModal({ open, onClose, tabId }: { open: boolean; onClose: 
   if (!tab) return null;
 
   const save = () => {
-    const finalName = name.trim() || 'Untitled request';
+    const finalName = name.trim() || (tab.kind === 'ws' ? 'New WebSocket' : 'Untitled request');
     let targetCollectionId = collectionId;
     if (!targetCollectionId) {
       targetCollectionId = addCollection('My collection');
     }
-    const node = newRequestNode(finalName, tab.request);
+    const node = tab.kind === 'ws' && tab.ws ? newWebSocketNode(finalName, tab.ws) : newRequestNode(finalName, tab.request);
     addNode(targetCollectionId, null, node);
     patchTab(tab.id, { nodeId: node.id, collectionId: targetCollectionId, name: finalName, dirty: false });
     toast.success('Saved', finalName);
@@ -47,7 +47,7 @@ export function SaveAsModal({ open, onClose, tabId }: { open: boolean; onClose: 
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={tab.request.url || 'My request'}
+            placeholder={(tab.kind === 'ws' ? tab.ws?.url : tab.request.url) || 'My request'}
             onKeyDown={(e) => e.key === 'Enter' && save()}
             className="h-8 w-full rounded-md border border-line bg-surface px-2.5 text-[12.5px] focus:border-accent focus:outline-none"
           />

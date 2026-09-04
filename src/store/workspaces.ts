@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { Collection, Environment, KV, RequestDef, TreeNode, Workspace } from '@/types';
+import type { Collection, Environment, KV, RequestDef, TreeNode, WebSocketRequestDef, Workspace } from '@/types';
 import { newCollection, newEnvironment, newWorkspace, seedWorkspace, uid, kv } from '@/lib/factory';
 import { insertNode, locate, mapNode, reidentify, removeNode } from '@/lib/tree';
 import { localJSONStorage } from '@/lib/storage';
@@ -27,6 +27,7 @@ interface WorkspaceState {
   addNode: (collectionId: string, parentFolderId: string | null, node: TreeNode) => void;
   updateNode: (collectionId: string, nodeId: string, patch: Partial<TreeNode>) => void;
   updateRequest: (collectionId: string, nodeId: string, request: RequestDef) => void;
+  updateWebSocketRequest: (collectionId: string, nodeId: string, request: WebSocketRequestDef) => void;
   deleteNode: (collectionId: string, nodeId: string) => { node: TreeNode; parentId: string | null; index: number } | null;
   duplicateNode: (collectionId: string, nodeId: string) => void;
   moveNode: (
@@ -141,6 +142,12 @@ export const useWorkspaces = create<WorkspaceState>()(
           patchCollection(collectionId, (c) => ({
             ...c,
             items: mapNode(c.items, nodeId, (node) => (node.type === 'request' ? { ...node, request } : node)),
+          })),
+
+        updateWebSocketRequest: (collectionId, nodeId, request) =>
+          patchCollection(collectionId, (c) => ({
+            ...c,
+            items: mapNode(c.items, nodeId, (node) => (node.type === 'websocket' ? { ...node, request } : node)),
           })),
 
         deleteNode: (collectionId, nodeId) => {

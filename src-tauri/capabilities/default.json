@@ -20,6 +20,7 @@
         { "name": "git", "cmd": "git", "args": true }
       ]
     },
-    "dialog:default"
+    "dialog:default",
+    "websocket:default"
   ]
 }

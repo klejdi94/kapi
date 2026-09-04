@@ -97,6 +97,8 @@ export function deepClone<T>(value: T): T {
 
 /** Fresh ids throughout, so a duplicated subtree never collides with the original. */
 export function reidentify(node: TreeNode, makeId: () => string): TreeNode {
-  if (node.type === 'request') return { ...node, id: makeId(), request: deepClone(node.request) };
-  return { ...node, id: makeId(), items: node.items.map((child) => reidentify(child, makeId)) };
+  if (node.type === 'folder') {
+    return { ...node, id: makeId(), items: node.items.map((child) => reidentify(child, makeId)) };
+  }
+  return { ...node, id: makeId(), request: deepClone(node.request) } as TreeNode;
 }

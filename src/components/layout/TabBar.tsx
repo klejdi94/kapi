@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Plus, X } from 'lucide-react';
+import { Plug, Plus, X } from 'lucide-react';
 import clsx from 'clsx';
 import { useSession } from '@/store/session';
 import { methodVar } from '@/lib/methodColor';
@@ -49,9 +49,13 @@ export function TabBar() {
                 active ? 'bg-bg' : 'bg-surface-2 hover:bg-surface-3',
               )}
             >
-              <span className="shrink-0 text-[9.5px] font-bold" style={{ color: methodVar(tab.request.method) }}>
-                {tab.request.method.slice(0, 4)}
-              </span>
+              {tab.kind === 'ws' ? (
+                <Plug size={11} className="shrink-0 text-info" />
+              ) : (
+                <span className="shrink-0 text-[9.5px] font-bold" style={{ color: methodVar(tab.request.method) }}>
+                  {tab.request.method.slice(0, 4)}
+                </span>
+              )}
               <span className={clsx('min-w-0 flex-1 truncate text-[12px]', active ? 'text-fg' : 'text-dim')}>{tab.name}</span>
               {tab.dirty && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />}
               <span

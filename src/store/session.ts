@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { RequestDef, RequestTabKey, ResponseView, Tab } from '@/types';
+import type { RequestDef, RequestTabKey, ResponseView, Tab, WebSocketRequestDef } from '@/types';
 import { newTab } from '@/lib/factory';
 import { localJSONStorage } from '@/lib/storage';
 
@@ -24,11 +24,13 @@ interface SessionState {
 
   openTab: (tab?: Partial<Tab>) => string;
   openRequestNode: (args: { nodeId: string; collectionId: string; name: string; request: RequestDef }) => string;
+  openWebSocketNode: (args: { nodeId: string; collectionId: string; name: string; request: WebSocketRequestDef }) => string;
   closeTab: (id: string) => void;
   closeOtherTabs: (id: string) => void;
   closeAllTabs: () => void;
   setActiveTab: (id: string) => void;
   updateTabRequest: (id: string, request: RequestDef) => void;
+  updateTabWs: (id: string, ws: WebSocketRequestDef) => void;
   patchTab: (id: string, patch: Partial<Tab>) => void;
 
   set: <K extends keyof SessionState>(key: K, value: SessionState[K]) => void;
@@ -68,6 +70,17 @@ export const useSession = create<SessionState>()(
         return tab.id;
       },
 
+      openWebSocketNode: ({ nodeId, collectionId, name, request }) => {
+        const existing = get().tabs.find((t) => t.nodeId === nodeId);
+        if (existing) {
+          setState({ activeTabId: existing.id });
+          return existing.id;
+        }
+        const tab = newTab({ nodeId, collectionId, name, kind: 'ws', ws: structuredClone(request) });
+        setState((state) => ({ tabs: [...state.tabs, tab], activeTabId: tab.id }));
+        return tab.id;
+      },
+
       closeTab: (id) =>
         setState((state) => {
           const index = state.tabs.findIndex((t) => t.id === id);
@@ -88,6 +101,11 @@ export const useSession = create<SessionState>()(
       updateTabRequest: (id, request) =>
         setState((state) => ({
           tabs: state.tabs.map((t) => (t.id === id ? { ...t, request, dirty: t.nodeId ? true : t.dirty } : t)),
+        })),
+
+      updateTabWs: (id, ws) =>
+        setState((state) => ({
+          tabs: state.tabs.map((t) => (t.id === id ? { ...t, ws, dirty: t.nodeId ? true : t.dirty } : t)),
         })),
 
       patchTab: (id, patch) =>
@@ -118,8 +136,12 @@ export const useSession = create<SessionState>()(
           const tab = newTab();
           state.tabs = [tab];
           state.activeTabId = tab.id;
-        } else if (!state.tabs.some((t) => t.id === state.activeTabId)) {
-          state.activeTabId = state.tabs[0].id;
+        } else {
+          // Backfill fields added after some tabs were already persisted.
+          state.tabs = state.tabs.map((t) => ({ ...t, kind: t.kind ?? 'http', ws: t.ws ?? null }) as Tab);
+          if (!state.tabs.some((t) => t.id === state.activeTabId)) {
+            state.activeTabId = state.tabs[0].id;
+          }
         }
       },
     },

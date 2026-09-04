@@ -122,6 +122,23 @@ export interface RequestNode {
   request: RequestDef;
 }
 
+/** A saved WebSocket connection — deliberately much simpler than RequestDef: no body modes, no methods. */
+export interface WebSocketRequestDef {
+  url: string;
+  headers: KV[];
+  /** Sec-WebSocket-Protocol values offered at handshake time. */
+  protocols: string[];
+  /** Text sent by default when the "send" box is empty and the user just wants a quick ping. */
+  defaultMessage: string;
+}
+
+export interface WebSocketNode {
+  id: string;
+  type: 'websocket';
+  name: string;
+  request: WebSocketRequestDef;
+}
+
 export interface FolderNode {
   id: string;
   type: 'folder';
@@ -132,7 +149,7 @@ export interface FolderNode {
   items: TreeNode[];
 }
 
-export type TreeNode = RequestNode | FolderNode;
+export type TreeNode = RequestNode | WebSocketNode | FolderNode;
 
 export interface Collection {
   id: string;
@@ -236,7 +253,10 @@ export interface Tab {
   nodeId: string | null;
   collectionId: string | null;
   name: string;
+  kind: 'http' | 'ws';
   request: RequestDef;
+  /** Only set when `kind === 'ws'`. */
+  ws: WebSocketRequestDef | null;
   dirty: boolean;
 }
 

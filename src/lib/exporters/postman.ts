@@ -58,14 +58,17 @@ function requestBodyToPostman(body: import('@/types').BodyConfig) {
   }
 }
 
+// Postman's v2.1 schema has no WebSocket request shape, so those nodes are
+// dropped from this export rather than mis-represented as an HTTP request.
 function nodeToPostman(node: TreeNode): unknown {
   if (node.type === 'folder') {
     return {
       name: node.name,
       auth: authToPostman(node.auth),
-      item: node.items.map(nodeToPostman),
+      item: node.items.map(nodeToPostman).filter(Boolean),
     };
   }
+  if (node.type === 'websocket') return null;
   const req = node.request;
   return {
     name: node.name,
@@ -91,7 +94,7 @@ export function exportPostmanCollection(collection: Collection): object {
     },
     auth: authToPostman(collection.auth),
     variable: enabledOnly(collection.variables).map((v) => ({ key: v.key, value: v.value })),
-    item: collection.items.map(nodeToPostman),
+    item: collection.items.map(nodeToPostman).filter(Boolean),
   };
 }
 

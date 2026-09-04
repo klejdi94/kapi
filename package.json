@@ -28,6 +28,7 @@
     "@tauri-apps/plugin-dialog": "^2.7.3",
     "@tauri-apps/plugin-http": "^2.6.0",
     "@tauri-apps/plugin-shell": "^2.3.6",
+    "@tauri-apps/plugin-websocket": "^2.4.3",
     "clsx": "^2.1.1",
     "lucide-react": "^0.469.0",
     "nanoid": "^5.0.9",
