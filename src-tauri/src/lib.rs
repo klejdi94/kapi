@@ -2,7 +2,9 @@ use std::fs;
 use std::path::Path;
 
 mod appmenu;
+mod claude_cli;
 mod mock;
+use claude_cli::{kapi_claude_available, kapi_claude_prompt};
 use mock::{kapi_mock_is_running, kapi_mock_start, kapi_mock_stop, MockState};
 
 /// Reads and writes the workspace snapshot file directly, rather than through
@@ -42,7 +44,9 @@ pub fn run() {
       kapi_path_exists,
       kapi_mock_start,
       kapi_mock_stop,
-      kapi_mock_is_running
+      kapi_mock_is_running,
+      kapi_claude_prompt,
+      kapi_claude_available
     ])
     .on_menu_event(|app, event| {
       appmenu::handle_event(app, event.id().as_ref());

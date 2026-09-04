@@ -4,7 +4,7 @@ import type { RequestDef, RequestTabKey, ResponseView, Tab, WebSocketRequestDef 
 import { newTab } from '@/lib/factory';
 import { fileJSONStorage } from '@/lib/fileStorage';
 
-export type SidebarPanel = 'collections' | 'environments' | 'history' | 'git' | 'mock';
+export type SidebarPanel = 'collections' | 'environments' | 'history' | 'git' | 'mock' | 'ai';
 export type SplitLayout = 'horizontal' | 'vertical';
 
 interface SessionState {

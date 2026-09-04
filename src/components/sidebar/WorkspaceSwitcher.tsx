@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronsUpDown, Download, FolderInput, FolderOutput, Import, Plus, Settings2, Trash2 } from 'lucide-react';
+import { Check, ChevronsUpDown, Download, FolderInput, FolderOutput, Import, Plus, Settings2, Sparkles, Trash2 } from 'lucide-react';
 import { useWorkspaces } from '@/store/workspaces';
 import { IconButton } from '@/components/ui/primitives';
 import { toast } from '@/lib/toast';
 import { gitAvailable, pickFolder } from '@/lib/git';
 import { readSnapshot, writeSnapshotTo } from '@/lib/gitWorkspace';
 import { newWorkspace } from '@/lib/factory';
+import { buildFeatureTourCollection, demoMockRoutes } from '@/lib/demo';
 
 const ICON_CHOICES = ['🚀', '🔧', '⚡', '🛠️', '📦', '🌐', '🔒', '🧪', '💾', '🎯', '🐙', '🔥', '📡', '🧩', '🗂️', '🎨'];
 
@@ -19,6 +20,8 @@ export function WorkspaceSwitcher({ onOpenImport, onOpenExport }: { onOpenImport
   const deleteWorkspace = useWorkspaces((s) => s.deleteWorkspace);
   const renameWorkspace = useWorkspaces((s) => s.renameWorkspace);
   const setWorkspaceIcon = useWorkspaces((s) => s.setWorkspaceIcon);
+  const importCollection = useWorkspaces((s) => s.importCollection);
+  const setMockServer = useWorkspaces((s) => s.setMockServer);
 
   const [open, setOpen] = useState(false);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
@@ -50,6 +53,15 @@ export function WorkspaceSwitcher({ onOpenImport, onOpenExport }: { onOpenImport
     if (!folder) return;
     await writeSnapshotTo(active, folder);
     toast.success('Saved to folder', folder);
+    setOpen(false);
+  };
+
+  const loadDemo = () => {
+    importCollection(buildFeatureTourCollection());
+    if (active && active.mockServer.routes.length === 0) {
+      setMockServer({ ...active.mockServer, routes: demoMockRoutes() });
+    }
+    toast.success('Added the feature tour', 'A live, sendable example of every kapi feature — check the Mock tab too.');
     setOpen(false);
   };
 
@@ -181,6 +193,12 @@ export function WorkspaceSwitcher({ onOpenImport, onOpenExport }: { onOpenImport
               className="flex h-8 w-full items-center gap-2 rounded px-2 text-left text-[12.5px] text-dim hover:bg-surface-3 hover:text-fg"
             >
               <Plus size={13} /> New workspace
+            </button>
+            <button
+              onClick={loadDemo}
+              className="flex h-8 w-full items-center gap-2 rounded px-2 text-left text-[12.5px] text-dim hover:bg-surface-3 hover:text-fg"
+            >
+              <Sparkles size={13} /> Load feature tour demo
             </button>
             <button
               onClick={() => {

@@ -1,11 +1,12 @@
 import * as YAML from 'yaml';
-import { emptyAuth, emptyBody, kv, newCollection, newEnvironment, newRequestNode, withTrailingBlank } from '@/lib/factory';
-import type { Collection, Environment, TreeNode } from '@/types';
+import { emptyAuth, emptyBody, kv, newCollection, newEnvironment, newFolder, newRequestNode, withTrailingBlank } from '@/lib/factory';
+import type { Collection, Environment, FolderNode, TreeNode } from '@/types';
 
 interface OaOperation {
   operationId?: string;
   summary?: string;
   description?: string;
+  tags?: string[];
   parameters?: OaParameter[];
   requestBody?: { content?: Record<string, { schema?: unknown; example?: unknown; examples?: Record<string, { value?: unknown }> }> };
   security?: Record<string, unknown>[];
@@ -28,6 +29,8 @@ interface OaDoc {
   paths?: Record<string, Record<string, OaOperation>>;
   components?: { securitySchemes?: Record<string, { type: string; scheme?: string; in?: string; name?: string }> };
   securityDefinitions?: Record<string, { type: string; in?: string; name?: string }>;
+  /** Declaration order here is the grouping order Swagger UI itself uses. */
+  tags?: { name: string; description?: string }[];
 }
 
 const METHODS = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options'];
@@ -97,7 +100,25 @@ export function importOpenApi(doc: OaDoc): { collection: Collection; environment
     baseUrl = '{{baseUrl}}';
   }
 
-  const items: TreeNode[] = [];
+  // Grouping order mirrors Swagger UI: the spec's own top-level `tags` list
+  // first (even tags with no operations yet, since that's still the
+  // declared order), then any tag first encountered on an operation, then
+  // finally an "Other" folder for anything with no tag at all — only
+  // created if at least one operation *does* have a tag, so a spec with no
+  // tags anywhere still imports flat exactly as before.
+  const folders = new Map<string, FolderNode>();
+  const ensureFolder = (name: string): FolderNode => {
+    let folder = folders.get(name);
+    if (!folder) {
+      folder = newFolder(name);
+      folders.set(name, folder);
+    }
+    return folder;
+  };
+  for (const tag of doc.tags ?? []) ensureFolder(tag.name);
+
+  const untagged: TreeNode[] = [];
+  let anyTagged = false;
 
   for (const [path, operations] of Object.entries(doc.paths ?? {})) {
     for (const method of METHODS) {
@@ -131,10 +152,27 @@ export function importOpenApi(doc: OaDoc): { collection: Collection; environment
         node.request.body.text.json = JSON.stringify(example, null, 2);
       }
 
-      items.push(node);
+      const tag = op.tags?.[0];
+      if (tag) {
+        anyTagged = true;
+        ensureFolder(tag).items.push(node);
+      } else {
+        untagged.push(node);
+      }
     }
   }
 
-  collection.items = items;
+  const orderedFolders = [...folders.values()].filter((f) => f.items.length > 0);
+  if (anyTagged) {
+    if (untagged.length) {
+      const other = newFolder('Other');
+      other.items = untagged;
+      orderedFolders.push(other);
+    }
+    collection.items = orderedFolders;
+  } else {
+    collection.items = untagged;
+  }
+
   return { collection, environment };
 }

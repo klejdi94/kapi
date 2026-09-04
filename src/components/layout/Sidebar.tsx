@@ -6,6 +6,7 @@ import { EnvironmentsPanel } from '@/components/sidebar/EnvironmentsPanel';
 import { HistoryPanel } from '@/components/sidebar/HistoryPanel';
 import { GitPanel } from '@/components/git/GitPanel';
 import { MockPanel } from '@/components/mock/MockPanel';
+import { AiPanel } from '@/components/ai/AiPanel';
 import { IconButton } from '@/components/ui/primitives';
 import { useSession } from '@/store/session';
 import { useActiveWorkspace, useWorkspaces } from '@/store/workspaces';
@@ -15,7 +16,7 @@ import type { RequestNode, WebSocketNode } from '@/types';
 
 type PinnedEntry = { node: RequestNode | WebSocketNode; collectionId: string; collectionName: string };
 
-const PANEL_TITLE = { collections: 'Collections', environments: 'Environments', history: 'History', git: 'Git', mock: 'Mock Servers' } as const;
+const PANEL_TITLE = { collections: 'Collections', environments: 'Environments', history: 'History', git: 'Git', mock: 'Mock Servers', ai: 'Ask Claude' } as const;
 
 export function Sidebar({ onOpenImport, onOpenExport }: { onOpenImport: () => void; onOpenExport: () => void }) {
   const panel = useSession((s) => s.sidebarPanel);
@@ -133,6 +134,7 @@ export function Sidebar({ onOpenImport, onOpenExport }: { onOpenImport: () => vo
         {panel === 'history' && <HistoryPanel />}
         {panel === 'git' && <GitPanel />}
         {panel === 'mock' && <MockPanel />}
+        {panel === 'ai' && <AiPanel />}
       </div>
     </div>
   );
