@@ -104,6 +104,6 @@ Pushing a tag builds macOS (Apple Silicon + Intel) and Windows installers on Git
 attaches them to a draft release:
 
 ```
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.2.1
+git push origin v0.2.1
 ```
