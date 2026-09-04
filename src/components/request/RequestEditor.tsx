@@ -8,7 +8,7 @@ import { AuthTab } from './AuthTab';
 import { BodyTab } from './BodyTab';
 import { SettingsTab } from './SettingsTab';
 import { kv, withTrailingBlank } from '@/lib/factory';
-import { pathVariableNames, unresolvedVariables } from '@/lib/send';
+import { mergeParamsFromUrl, pathVariableNames, unresolvedVariables } from '@/lib/send';
 import { AUTH_LABELS, effectiveAuth } from '@/lib/auth';
 import { ancestorsOf } from '@/lib/tree';
 import { buildBody } from '@/lib/body';
@@ -81,6 +81,13 @@ export function RequestEditor({
 
   const set = <K extends keyof RequestDef>(key: K, value: RequestDef[K]) => onChange({ ...request, [key]: value });
 
+  const onUrlChange = (url: string) => {
+    // A pasted or typed `?query=string` gets mirrored into the params grid,
+    // same as :pathVars already are — nothing about the URL stays invisible.
+    const mergedParams = mergeParamsFromUrl(url, request.params);
+    onChange({ ...request, url, ...(mergedParams ? { params: withTrailingBlank(mergedParams) } : {}) });
+  };
+
   const tryImportCurl = (text: string): boolean => {
     const parsed = parseCurl(text);
     if (!parsed) return false;
@@ -95,7 +102,7 @@ export function RequestEditor({
         method={request.method}
         url={request.url}
         onMethod={(method) => set('method', method)}
-        onUrl={(url) => set('url', url)}
+        onUrl={onUrlChange}
         onSend={onSend}
         onCancel={onCancel}
         onSave={onSave}

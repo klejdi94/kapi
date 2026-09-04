@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  ChevronRight, Copy, Download, FilePlus, FolderPlus, MoreHorizontal, Pencil, Play, Plug, Trash2,
+  ChevronRight, Copy, Download, FilePlus, FolderPlus, MoreHorizontal, Pencil, Pin, Play, Plug, Trash2,
 } from 'lucide-react';
 import clsx from 'clsx';
 import type { Collection, FolderNode, RequestNode, TreeNode, WebSocketNode } from '@/types';
@@ -25,6 +25,7 @@ export function CollectionTree({ collection }: { collection: Collection }) {
   const deleteNode = useWorkspaces((s) => s.deleteNode);
   const duplicateNode = useWorkspaces((s) => s.duplicateNode);
   const updateNode = useWorkspaces((s) => s.updateNode);
+  const toggleNodePin = useWorkspaces((s) => s.toggleNodePin);
   const moveNode = useWorkspaces((s) => s.moveNode);
   const openRequestNode = useSession((s) => s.openRequestNode);
   const openWebSocketNode = useSession((s) => s.openWebSocketNode);
@@ -149,6 +150,7 @@ export function CollectionTree({ collection }: { collection: Collection }) {
               deleteNode={deleteNode}
               duplicateNode={duplicateNode}
               updateNode={updateNode}
+              toggleNodePin={toggleNodePin}
               drag={drag}
               setDrag={setDrag}
               dropTarget={dropTarget}
@@ -197,6 +199,7 @@ function NodeRow({
   deleteNode,
   duplicateNode,
   updateNode,
+  toggleNodePin,
   drag,
   setDrag,
   dropTarget,
@@ -215,6 +218,7 @@ function NodeRow({
   deleteNode: ReturnType<typeof useWorkspaces.getState>['deleteNode'];
   duplicateNode: ReturnType<typeof useWorkspaces.getState>['duplicateNode'];
   updateNode: ReturnType<typeof useWorkspaces.getState>['updateNode'];
+  toggleNodePin: ReturnType<typeof useWorkspaces.getState>['toggleNodePin'];
   drag: DragState | null;
   setDrag: (d: DragState | null) => void;
   dropTarget: { id: string; where: 'before' | 'after' | 'inside' } | null;
@@ -228,6 +232,13 @@ function NodeRow({
   const commonMenuItems = (): MenuItem[] => [
     { label: 'Rename', icon: <Pencil size={12} />, onSelect: () => setRenaming(node.id) },
     { label: 'Duplicate', icon: <Copy size={12} />, onSelect: () => duplicateNode(collection.id, node.id) },
+    ...(node.type !== 'folder'
+      ? [{
+          label: node.pinned ? 'Unpin' : 'Pin to top',
+          icon: <Pin size={12} />,
+          onSelect: () => toggleNodePin(collection.id, node.id),
+        }]
+      : []),
     {
       label: 'Delete', icon: <Trash2 size={12} />, danger: true, separatorAbove: true,
       onSelect: () => {
@@ -322,6 +333,7 @@ function NodeRow({
               deleteNode={deleteNode}
               duplicateNode={duplicateNode}
               updateNode={updateNode}
+              toggleNodePin={toggleNodePin}
               drag={drag}
               setDrag={setDrag}
               dropTarget={dropTarget}

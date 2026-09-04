@@ -1,15 +1,19 @@
-import { FolderPlus, Search } from 'lucide-react';
-import { useState } from 'react';
+import { FolderPlus, Pin, Search } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { WorkspaceSwitcher } from '@/components/sidebar/WorkspaceSwitcher';
 import { CollectionTree } from '@/components/sidebar/CollectionTree';
 import { EnvironmentsPanel } from '@/components/sidebar/EnvironmentsPanel';
 import { HistoryPanel } from '@/components/sidebar/HistoryPanel';
 import { GitPanel } from '@/components/git/GitPanel';
+import { MockPanel } from '@/components/mock/MockPanel';
 import { Segmented, IconButton } from '@/components/ui/primitives';
 import { useSession, type SidebarPanel } from '@/store/session';
 import { useActiveWorkspace, useWorkspaces } from '@/store/workspaces';
-import { allRequests } from '@/lib/tree';
+import { allRequests, walk } from '@/lib/tree';
 import { methodVar } from '@/lib/methodColor';
+import type { RequestNode, WebSocketNode } from '@/types';
+
+type PinnedEntry = { node: RequestNode | WebSocketNode; collectionId: string; collectionName: string };
 
 export function Sidebar({ onOpenImport, onOpenExport }: { onOpenImport: () => void; onOpenExport: () => void }) {
   const panel = useSession((s) => s.sidebarPanel);
@@ -17,6 +21,7 @@ export function Sidebar({ onOpenImport, onOpenExport }: { onOpenImport: () => vo
   const workspace = useActiveWorkspace();
   const addCollection = useWorkspaces((s) => s.addCollection);
   const openRequestNode = useSession((s) => s.openRequestNode);
+  const openWebSocketNode = useSession((s) => s.openWebSocketNode);
   const [query, setQuery] = useState('');
 
   const searching = panel === 'collections' && query.trim().length > 0;
@@ -28,21 +33,39 @@ export function Sidebar({ onOpenImport, onOpenExport }: { onOpenImport: () => vo
       )
     : [];
 
+  const pinned = useMemo(() => {
+    const out: PinnedEntry[] = [];
+    for (const collection of workspace.collections) {
+      walk(collection.items, (node) => {
+        if (node.type !== 'folder' && node.pinned) out.push({ node, collectionId: collection.id, collectionName: collection.name });
+      });
+    }
+    return out;
+  }, [workspace.collections]);
+
+  const openPinned = (entry: PinnedEntry) =>
+    entry.node.type === 'websocket'
+      ? openWebSocketNode({ nodeId: entry.node.id, collectionId: entry.collectionId, name: entry.node.name, request: entry.node.request })
+      : openRequestNode({ nodeId: entry.node.id, collectionId: entry.collectionId, name: entry.node.name, request: entry.node.request });
+
   return (
     <div className="flex h-full flex-col bg-surface-2">
       <WorkspaceSwitcher onOpenImport={onOpenImport} onOpenExport={onOpenExport} />
 
       <div className="flex items-center justify-between gap-1 border-b border-line px-2 py-1.5">
-        <Segmented
-          value={panel}
-          onChange={(v) => setPanel('sidebarPanel', v as SidebarPanel)}
-          options={[
-            { value: 'collections', label: 'Collections' },
-            { value: 'environments', label: 'Env' },
-            { value: 'history', label: 'History' },
-            { value: 'git', label: 'Git' },
-          ]}
-        />
+        <div className="no-scrollbar overflow-x-auto">
+          <Segmented
+            value={panel}
+            onChange={(v) => setPanel('sidebarPanel', v as SidebarPanel)}
+            options={[
+              { value: 'collections', label: 'Collections' },
+              { value: 'environments', label: 'Env' },
+              { value: 'history', label: 'History' },
+              { value: 'git', label: 'Git' },
+              { value: 'mock', label: 'Mock' },
+            ]}
+          />
+        </div>
         {panel === 'collections' && (
           <IconButton label="New collection" onClick={() => addCollection()}>
             <FolderPlus size={13} />
@@ -87,6 +110,28 @@ export function Sidebar({ onOpenImport, onOpenExport }: { onOpenImport: () => vo
             </div>
           ) : (
             <div className="p-1.5">
+              {pinned.length > 0 && (
+                <div className="mb-2 border-b border-line pb-2">
+                  <div className="flex items-center gap-1.5 px-2 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-faint">
+                    <Pin size={10} /> Pinned
+                  </div>
+                  {pinned.map((entry) => (
+                    <button
+                      key={entry.node.id}
+                      onClick={() => openPinned(entry)}
+                      className="flex h-7 w-full items-center gap-2 rounded px-2 text-left hover:bg-surface-3"
+                    >
+                      <span
+                        className="w-9 shrink-0 text-right text-[9.5px] font-bold"
+                        style={{ color: entry.node.type === 'websocket' ? 'var(--info)' : methodVar(entry.node.request.method) }}
+                      >
+                        {entry.node.type === 'websocket' ? 'WS' : entry.node.request.method.slice(0, 4)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-[12.5px] text-dim">{entry.node.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
               {workspace.collections.length === 0 && (
                 <p className="px-2 py-3 text-[12px] leading-relaxed text-faint">No collections yet. Create one to start organizing requests.</p>
               )}
@@ -98,6 +143,7 @@ export function Sidebar({ onOpenImport, onOpenExport }: { onOpenImport: () => vo
         {panel === 'environments' && <EnvironmentsPanel />}
         {panel === 'history' && <HistoryPanel />}
         {panel === 'git' && <GitPanel />}
+        {panel === 'mock' && <MockPanel />}
       </div>
     </div>
   );

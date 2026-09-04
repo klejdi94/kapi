@@ -7,6 +7,8 @@ import { gitAvailable, pickFolder } from '@/lib/git';
 import { readSnapshot, writeSnapshotTo } from '@/lib/gitWorkspace';
 import { newWorkspace } from '@/lib/factory';
 
+const ICON_CHOICES = ['🚀', '🔧', '⚡', '🛠️', '📦', '🌐', '🔒', '🧪', '💾', '🎯', '🐙', '🔥', '📡', '🧩', '🗂️', '🎨'];
+
 export function WorkspaceSwitcher({ onOpenImport, onOpenExport }: { onOpenImport: () => void; onOpenExport: () => void }) {
   const workspaces = useWorkspaces((s) => s.workspaces);
   const activeId = useWorkspaces((s) => s.activeWorkspaceId);
@@ -16,10 +18,22 @@ export function WorkspaceSwitcher({ onOpenImport, onOpenExport }: { onOpenImport
   const importWorkspace = useWorkspaces((s) => s.importWorkspace);
   const deleteWorkspace = useWorkspaces((s) => s.deleteWorkspace);
   const renameWorkspace = useWorkspaces((s) => s.renameWorkspace);
+  const setWorkspaceIcon = useWorkspaces((s) => s.setWorkspaceIcon);
 
   const [open, setOpen] = useState(false);
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const iconRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!iconPickerOpen) return;
+    const close = (e: MouseEvent) => {
+      if (iconRef.current && !iconRef.current.contains(e.target as Node)) setIconPickerOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [iconPickerOpen]);
 
   useEffect(() => {
     if (!open) return;
@@ -56,16 +70,54 @@ export function WorkspaceSwitcher({ onOpenImport, onOpenExport }: { onOpenImport
 
   return (
     <div className="relative border-b border-line p-2" ref={ref}>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left hover:bg-surface-2"
-      >
-        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-accent text-[11px] font-bold text-accent-fg">
-          {(active?.name || 'K').slice(0, 1).toUpperCase()}
+      <div className="flex h-9 w-full items-center gap-2 rounded-md px-2 hover:bg-surface-2">
+        <div className="relative shrink-0" ref={iconRef}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIconPickerOpen((o) => !o);
+            }}
+            title="Choose an icon"
+            className="flex h-6 w-6 items-center justify-center rounded bg-accent text-[13px] font-bold text-accent-fg hover:brightness-110"
+          >
+            {active?.icon || (active?.name || 'K').slice(0, 1).toUpperCase()}
+          </button>
+          {iconPickerOpen && (
+            <div
+              className="animate-in absolute left-0 top-[calc(100%+4px)] z-40 grid w-48 grid-cols-6 gap-1 rounded-lg border border-line bg-surface-2 p-2 shadow-2xl"
+              style={{ boxShadow: 'var(--shadow)' }}
+            >
+              {ICON_CHOICES.map((icon) => (
+                <button
+                  key={icon}
+                  onClick={() => {
+                    setWorkspaceIcon(icon);
+                    setIconPickerOpen(false);
+                  }}
+                  className="flex h-7 w-7 items-center justify-center rounded text-[15px] hover:bg-surface-3"
+                >
+                  {icon}
+                </button>
+              ))}
+              {active?.icon && (
+                <button
+                  onClick={() => {
+                    setWorkspaceIcon('');
+                    setIconPickerOpen(false);
+                  }}
+                  className="col-span-6 mt-1 rounded border-t border-line pt-1.5 text-[11px] text-faint hover:text-fg"
+                >
+                  Reset to letter
+                </button>
+              )}
+            </div>
+          )}
         </div>
-        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-fg">{active?.name || 'Workspace'}</span>
-        <ChevronsUpDown size={13} className="shrink-0 text-faint" />
-      </button>
+        <button onClick={() => setOpen((o) => !o)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+          <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-fg">{active?.name || 'Workspace'}</span>
+          <ChevronsUpDown size={13} className="shrink-0 text-faint" />
+        </button>
+      </div>
 
       {open && (
         <div className="animate-in absolute left-2 right-2 top-[calc(100%+2px)] z-30 overflow-hidden rounded-lg border border-line bg-surface-2 shadow-2xl" style={{ boxShadow: 'var(--shadow)' }}>

@@ -1,6 +1,9 @@
 use std::fs;
 use std::path::Path;
 
+mod mock;
+use mock::{kapi_mock_is_running, kapi_mock_start, kapi_mock_stop, MockState};
+
 /// Reads and writes the workspace snapshot file directly, rather than through
 /// the fs plugin's ACL scope: the path always comes from the OS's own native
 /// folder picker, so it's already at the trust level the user granted by
@@ -31,10 +34,14 @@ pub fn run() {
     .plugin(tauri_plugin_shell::init())
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_websocket::init())
+    .manage(MockState::default())
     .invoke_handler(tauri::generate_handler![
       kapi_write_text_file,
       kapi_read_text_file,
-      kapi_path_exists
+      kapi_path_exists,
+      kapi_mock_start,
+      kapi_mock_stop,
+      kapi_mock_is_running
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {

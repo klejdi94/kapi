@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { Collection, Environment, KV, RequestDef, TreeNode, WebSocketRequestDef, Workspace } from '@/types';
+import type { Collection, Environment, KV, MockServerConfig, RequestDef, TreeNode, WebSocketRequestDef, Workspace } from '@/types';
 import { newCollection, newEnvironment, newWorkspace, seedWorkspace, uid, kv } from '@/lib/factory';
 import { insertNode, locate, mapNode, reidentify, removeNode } from '@/lib/tree';
 import { fileJSONStorage } from '@/lib/fileStorage';
@@ -46,6 +46,11 @@ interface WorkspaceState {
   /* git */
   setGitRepoPath: (path: string | null) => void;
   replaceCollections: (collections: Collection[]) => void;
+
+  /* misc */
+  setWorkspaceIcon: (icon: string) => void;
+  setMockServer: (config: MockServerConfig) => void;
+  toggleNodePin: (collectionId: string, nodeId: string) => void;
 }
 
 const touch = (ws: Workspace): Workspace => ({ ...ws, updatedAt: Date.now() });
@@ -230,6 +235,17 @@ export const useWorkspaces = create<WorkspaceState>()(
 
         setGitRepoPath: (path) => patchActive((ws) => ({ ...ws, gitRepoPath: path })),
         replaceCollections: (collections) => patchActive((ws) => ({ ...ws, collections })),
+
+        setWorkspaceIcon: (icon) => patchActive((ws) => ({ ...ws, icon })),
+        setMockServer: (config) => patchActive((ws) => ({ ...ws, mockServer: config })),
+
+        toggleNodePin: (collectionId, nodeId) =>
+          patchCollection(collectionId, (c) => ({
+            ...c,
+            items: mapNode(c.items, nodeId, (node) =>
+              node.type === 'folder' ? node : { ...node, pinned: !node.pinned },
+            ),
+          })),
       };
     },
     {
@@ -256,7 +272,12 @@ useWorkspaces.persist.onFinishHydration(() => {
     useWorkspaces.setState({ workspaces: [seeded], activeWorkspaceId: seeded.id });
     return;
   }
-  const backfilled = workspaces.map((ws) => ({ ...ws, gitRepoPath: ws.gitRepoPath ?? null }));
+  const backfilled = workspaces.map((ws) => ({
+    ...ws,
+    gitRepoPath: ws.gitRepoPath ?? null,
+    icon: ws.icon ?? '',
+    mockServer: ws.mockServer ?? { port: 0, routes: [] },
+  }));
   const activeWorkspaceId = useWorkspaces.getState().activeWorkspaceId;
   const stillValid = backfilled.some((ws) => ws.id === activeWorkspaceId);
   useWorkspaces.setState({ workspaces: backfilled, activeWorkspaceId: stillValid ? activeWorkspaceId : backfilled[0].id });

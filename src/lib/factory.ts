@@ -6,6 +6,7 @@ import type {
   Environment,
   FolderNode,
   KV,
+  MockRoute,
   RequestDef,
   RequestNode,
   RequestSettings,
@@ -125,6 +126,7 @@ export function newWorkspace(name = 'New workspace'): Workspace {
   return {
     id: uid(),
     name,
+    icon: '',
     collections: [],
     environments: [],
     globals: [kv({ enabled: false })],
@@ -132,6 +134,21 @@ export function newWorkspace(name = 'New workspace'): Workspace {
     createdAt: Date.now(),
     updatedAt: Date.now(),
     gitRepoPath: null,
+    mockServer: { port: 0, routes: [] },
+  };
+}
+
+export function newMockRoute(partial: Partial<MockRoute> = {}): MockRoute {
+  return {
+    id: uid(),
+    enabled: true,
+    method: 'GET',
+    path: '/',
+    status: 200,
+    headers: [{ key: 'Content-Type', value: 'application/json' }],
+    body: '{\n  "message": "ok"\n}',
+    delayMs: 0,
+    ...partial,
   };
 }
 

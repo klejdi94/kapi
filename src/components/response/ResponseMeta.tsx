@@ -1,4 +1,4 @@
-import { Copy, Download } from 'lucide-react';
+import { BookmarkPlus, Copy, Download } from 'lucide-react';
 import type { KapiResponse } from '@/types';
 import { formatBytes, formatDuration, statusText, statusTone } from '@/lib/format';
 import { Badge, IconButton } from '@/components/ui/primitives';
@@ -6,7 +6,15 @@ import { toast } from '@/lib/toast';
 
 const TONE_MAP = { ok: 'ok', info: 'info', warn: 'warn', danger: 'danger', dim: 'dim' } as const;
 
-export function ResponseMeta({ response, onDownload }: { response: KapiResponse; onDownload: () => void }) {
+export function ResponseMeta({
+  response,
+  onDownload,
+  onSaveExample,
+}: {
+  response: KapiResponse;
+  onDownload: () => void;
+  onSaveExample?: () => void;
+}) {
   const tone = TONE_MAP[statusTone(response.status)];
 
   const copyBody = async () => {
@@ -28,6 +36,11 @@ export function ResponseMeta({ response, onDownload }: { response: KapiResponse;
       {response.redirected && <Badge tone="info">redirected</Badge>}
 
       <div className="ml-auto flex items-center gap-0.5">
+        {onSaveExample && (
+          <IconButton label="Save as example" onClick={onSaveExample}>
+            <BookmarkPlus size={13} />
+          </IconButton>
+        )}
         <IconButton label="Copy body" onClick={copyBody}>
           <Copy size={13} />
         </IconButton>

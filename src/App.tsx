@@ -23,7 +23,8 @@ import { resolveInheritedForNode } from '@/lib/inherit';
 import { send } from '@/lib/send';
 import { uid, newWebSocketRequest } from '@/lib/factory';
 import { toast } from '@/lib/toast';
-import type { RequestDef, WebSocketRequestDef } from '@/types';
+import { responseToExample, exampleToResponse } from '@/lib/examples';
+import type { RequestDef, SavedExample, WebSocketRequestDef } from '@/types';
 import { FileDown } from 'lucide-react';
 
 export default function App() {
@@ -131,6 +132,33 @@ export default function App() {
     patchTab(activeTab.id, { name: 'Imported request' });
   };
 
+  const persistExamples = (examples: SavedExample[]) => {
+    if (!activeTab) return;
+    const request = { ...activeTab.request, examples };
+    updateTabRequest(activeTab.id, request);
+    if (activeTab.nodeId && activeTab.collectionId) updateRequest(activeTab.collectionId, activeTab.nodeId, request);
+  };
+
+  const onSaveExample = () => {
+    if (!activeTab || activeTab.kind !== 'http' || !run.result?.ok) return;
+    const name = prompt('Name this example', `${run.result.response.status} response`);
+    if (!name) return;
+    const example = responseToExample(run.result.response, name);
+    persistExamples([...(activeTab.request.examples ?? []), example]);
+    toast.success('Saved example', name);
+  };
+
+  const onLoadExample = (example: SavedExample) => {
+    if (!activeTab) return;
+    const response = exampleToResponse(example, activeTab.request.method, activeTab.request.url);
+    useResponses.getState().setResult(activeTab.id, { ok: true, response });
+  };
+
+  const onDeleteExample = (id: string) => {
+    if (!activeTab) return;
+    persistExamples((activeTab.request.examples ?? []).filter((e) => e.id !== id));
+  };
+
   // Global keyboard shortcuts.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -208,7 +236,16 @@ export default function App() {
                     collection={collection}
                   />
                 }
-                second={<ResponseViewer run={run.result} loading={run.loading} />}
+                second={
+                  <ResponseViewer
+                    run={run.result}
+                    loading={run.loading}
+                    onSaveExample={onSaveExample}
+                    examples={activeTab.request.examples}
+                    onLoadExample={onLoadExample}
+                    onDeleteExample={onDeleteExample}
+                  />
+                }
               />
             </>
           )}

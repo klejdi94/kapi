@@ -120,6 +120,7 @@ export interface RequestNode {
   type: 'request';
   name: string;
   request: RequestDef;
+  pinned?: boolean;
 }
 
 /** A saved WebSocket connection — deliberately much simpler than RequestDef: no body modes, no methods. */
@@ -137,6 +138,7 @@ export interface WebSocketNode {
   type: 'websocket';
   name: string;
   request: WebSocketRequestDef;
+  pinned?: boolean;
 }
 
 export interface FolderNode {
@@ -169,9 +171,34 @@ export interface Environment {
   variables: KV[];
 }
 
+export interface MockHeader {
+  key: string;
+  value: string;
+}
+
+export interface MockRoute {
+  id: string;
+  enabled: boolean;
+  method: string;
+  /** `/users/:id` — `:segments` match any single path segment. */
+  path: string;
+  status: number;
+  headers: MockHeader[];
+  body: string;
+  delayMs: number;
+}
+
+export interface MockServerConfig {
+  /** 0 asks the OS for any free port. */
+  port: number;
+  routes: MockRoute[];
+}
+
 export interface Workspace {
   id: string;
   name: string;
+  /** A single emoji, or empty for the default first-letter avatar. */
+  icon: string;
   collections: Collection[];
   environments: Environment[];
   globals: KV[];
@@ -180,6 +207,7 @@ export interface Workspace {
   updatedAt: number;
   /** Absolute path to a local folder this workspace is synced to as a git repo. */
   gitRepoPath: string | null;
+  mockServer: MockServerConfig;
 }
 
 /* ---------------------------------------------------------------- responses */
