@@ -5,6 +5,15 @@ workspaces, collections, environments and history all live on your machine (`loc
 app's webview). Requests go out through the OS's own networking stack (via Tauri's HTTP plugin), not a
 browser, so there's no CORS to work around and no proxy involved at all.
 
+<p>
+  <a href="https://github.com/klejdi94/kapi/releases/latest/download/kapi_0.1.0_aarch64.dmg">
+    <img alt="Download for macOS" src="https://img.shields.io/badge/Download-macOS%20(Apple%20Silicon)-8b7cff?style=for-the-badge&logo=apple&logoColor=white">
+  </a>
+</p>
+
+Requires macOS on Apple Silicon (arm64). See [Releases](https://github.com/klejdi94/kapi/releases) for
+every build.
+
 ## Develop
 
 ```
