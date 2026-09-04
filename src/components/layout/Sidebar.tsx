@@ -6,8 +6,8 @@ import { EnvironmentsPanel } from '@/components/sidebar/EnvironmentsPanel';
 import { HistoryPanel } from '@/components/sidebar/HistoryPanel';
 import { GitPanel } from '@/components/git/GitPanel';
 import { MockPanel } from '@/components/mock/MockPanel';
-import { Segmented, IconButton } from '@/components/ui/primitives';
-import { useSession, type SidebarPanel } from '@/store/session';
+import { IconButton } from '@/components/ui/primitives';
+import { useSession } from '@/store/session';
 import { useActiveWorkspace, useWorkspaces } from '@/store/workspaces';
 import { allRequests, walk } from '@/lib/tree';
 import { methodVar } from '@/lib/methodColor';
@@ -15,9 +15,10 @@ import type { RequestNode, WebSocketNode } from '@/types';
 
 type PinnedEntry = { node: RequestNode | WebSocketNode; collectionId: string; collectionName: string };
 
+const PANEL_TITLE = { collections: 'Collections', environments: 'Environments', history: 'History', git: 'Git', mock: 'Mock Servers' } as const;
+
 export function Sidebar({ onOpenImport, onOpenExport }: { onOpenImport: () => void; onOpenExport: () => void }) {
   const panel = useSession((s) => s.sidebarPanel);
-  const setPanel = useSession((s) => s.set);
   const workspace = useActiveWorkspace();
   const addCollection = useWorkspaces((s) => s.addCollection);
   const openRequestNode = useSession((s) => s.openRequestNode);
@@ -52,20 +53,8 @@ export function Sidebar({ onOpenImport, onOpenExport }: { onOpenImport: () => vo
     <div className="flex h-full flex-col bg-surface-2">
       <WorkspaceSwitcher onOpenImport={onOpenImport} onOpenExport={onOpenExport} />
 
-      <div className="flex items-center justify-between gap-1 border-b border-line px-2 py-1.5">
-        <div className="no-scrollbar overflow-x-auto">
-          <Segmented
-            value={panel}
-            onChange={(v) => setPanel('sidebarPanel', v as SidebarPanel)}
-            options={[
-              { value: 'collections', label: 'Collections' },
-              { value: 'environments', label: 'Env' },
-              { value: 'history', label: 'History' },
-              { value: 'git', label: 'Git' },
-              { value: 'mock', label: 'Mock' },
-            ]}
-          />
-        </div>
+      <div className="flex items-center justify-between gap-1 border-b border-line px-2.5 py-1.5">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-faint">{PANEL_TITLE[panel]}</span>
         {panel === 'collections' && (
           <IconButton label="New collection" onClick={() => addCollection()}>
             <FolderPlus size={13} />

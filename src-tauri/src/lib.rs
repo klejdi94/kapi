@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
 
+mod appmenu;
 mod mock;
 use mock::{kapi_mock_is_running, kapi_mock_start, kapi_mock_stop, MockState};
 
@@ -43,6 +44,9 @@ pub fn run() {
       kapi_mock_stop,
       kapi_mock_is_running
     ])
+    .on_menu_event(|app, event| {
+      appmenu::handle_event(app, event.id().as_ref());
+    })
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
@@ -51,6 +55,8 @@ pub fn run() {
             .build(),
         )?;
       }
+      let menu = appmenu::build(app)?;
+      app.set_menu(menu)?;
       Ok(())
     })
     .run(tauri::generate_context!())

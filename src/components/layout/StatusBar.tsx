@@ -1,5 +1,6 @@
-import { PanelLeft, Rows3, Columns3, ShieldCheck } from 'lucide-react';
+import { PanelLeft, Rows3, Columns3, ShieldCheck, TerminalSquare } from 'lucide-react';
 import { useSession, type SplitLayout } from '@/store/session';
+import { useConsole } from '@/store/console';
 import { IconButton } from '@/components/ui/primitives';
 import { estimateDiskUsageBytes, dataDirectoryPath } from '@/lib/fileStorage';
 import { formatBytes } from '@/lib/format';
@@ -9,6 +10,9 @@ export function StatusBar() {
   const sidebarOpen = useSession((s) => s.sidebarOpen);
   const setSession = useSession((s) => s.set);
   const splitLayout = useSession((s) => s.splitLayout);
+  const consoleOpen = useConsole((s) => s.open);
+  const setConsoleOpen = useConsole((s) => s.setOpen);
+  const consoleCount = useConsole((s) => s.entries.length);
   const [storage, setStorage] = useState(0);
   const [dataDir, setDataDir] = useState('');
 
@@ -35,6 +39,10 @@ export function StatusBar() {
           <Rows3 size={12} />
         </IconButton>
       </div>
+      <IconButton label="Toggle console (⌘`)" active={consoleOpen} onClick={() => setConsoleOpen(!consoleOpen)} className="h-5 w-5">
+        <TerminalSquare size={12} />
+      </IconButton>
+      {consoleCount > 0 && <span className="tnum">{consoleCount}</span>}
       <span className="flex-1" />
       <span title={dataDir ? `Stored at ${dataDir}` : 'Everything is stored only on this machine'}>{formatBytes(storage)} used locally</span>
       <span className="flex items-center gap-1" title="Requests go straight from your machine to the API — kapi has no backend of its own">

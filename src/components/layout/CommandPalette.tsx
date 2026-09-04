@@ -5,6 +5,7 @@ import { useSession } from '@/store/session';
 import { useActiveWorkspace, useWorkspaces } from '@/store/workspaces';
 import { allRequests } from '@/lib/tree';
 import { methodVar } from '@/lib/methodColor';
+import { toggleTheme } from '@/lib/theme';
 
 export interface Command {
   id: string;
@@ -32,7 +33,6 @@ export function CommandPalette({
   const openRequestNode = useSession((s) => s.openRequestNode);
   const openTab = useSession((s) => s.openTab);
   const theme = useSession((s) => s.theme);
-  const setSession = useSession((s) => s.set);
 
   useEffect(() => {
     if (open) {
@@ -49,19 +49,14 @@ export function CommandPalette({
         id: 'toggle-theme',
         label: theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme',
         icon: theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />,
-        run: () => {
-          const next = theme === 'dark' ? 'light' : 'dark';
-          document.documentElement.classList.toggle('dark', next === 'dark');
-          setSession('theme', next);
-          try { localStorage.setItem('kapi.theme', next); } catch { /* ignore */ }
-        },
+        run: toggleTheme,
       },
       ...extraCommands,
       ...workspaces
         .filter((w) => w.id !== workspace.id)
         .map((w) => ({ id: `ws-${w.id}`, label: `Switch to workspace "${w.name}"`, icon: <Import size={13} />, run: () => setActiveWorkspace(w.id) })),
     ],
-    [theme, extraCommands, workspaces, workspace.id, openTab, setActiveWorkspace, setSession],
+    [theme, extraCommands, workspaces, workspace.id, openTab, setActiveWorkspace],
   );
 
   const requestResults = useMemo(() => {

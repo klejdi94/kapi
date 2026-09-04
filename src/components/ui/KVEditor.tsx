@@ -5,6 +5,7 @@ import { kv, withTrailingBlank } from '@/lib/factory';
 import { variableSpans } from '@/lib/variables';
 import { IconButton } from './primitives';
 import { putFile, dropFile, getFile } from '@/lib/files';
+import { COMMON_CONTENT_TYPES } from '@/lib/format';
 
 /**
  * The params/headers/form-data/urlencoded/variables grid used everywhere in
@@ -165,14 +166,24 @@ function Row({
           />
         </div>
       ) : (
-        <input
-          value={row.value}
-          onChange={(e) => onValue(e.target.value)}
-          placeholder={valuePlaceholder}
-          title={preview && preview !== row.value ? `→ ${preview}` : undefined}
-          className="h-8 w-full bg-surface px-1.5 text-[12.5px] text-fg placeholder:text-faint focus:outline-none focus:ring-1 focus:ring-inset focus:ring-accent disabled:opacity-50"
-          disabled={row.auto}
-        />
+        <>
+          <input
+            value={row.value}
+            onChange={(e) => onValue(e.target.value)}
+            placeholder={valuePlaceholder}
+            title={preview && preview !== row.value ? `→ ${preview}` : undefined}
+            list={row.key.trim().toLowerCase() === 'content-type' ? `kapi-content-types-${row.id}` : undefined}
+            className="h-8 w-full bg-surface px-1.5 text-[12.5px] text-fg placeholder:text-faint focus:outline-none focus:ring-1 focus:ring-inset focus:ring-accent disabled:opacity-50"
+            disabled={row.auto}
+          />
+          {row.key.trim().toLowerCase() === 'content-type' && (
+            <datalist id={`kapi-content-types-${row.id}`}>
+              {COMMON_CONTENT_TYPES.map((ct) => (
+                <option key={ct} value={ct} />
+              ))}
+            </datalist>
+          )}
+        </>
       )}
       {showDescription && (
         <input

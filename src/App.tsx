@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
+import { IconRail } from '@/components/layout/IconRail';
 import { TabBar } from '@/components/layout/TabBar';
 import { EnvironmentPicker } from '@/components/layout/EnvironmentPicker';
 import { SplitPane, PixelSplitter } from '@/components/layout/Splitter';
@@ -14,7 +15,14 @@ import { SaveAsModal } from '@/components/modals/SaveAsModal';
 import { ExportModal } from '@/components/modals/ExportModal';
 import { CodeSnippetModal } from '@/components/modals/CodeSnippetModal';
 import { WsPanel } from '@/components/ws/WsPanel';
+import { ConsolePanel } from '@/components/console/ConsolePanel';
 import { useSession, useActiveTab } from '@/store/session';
+import { useConsole } from '@/store/console';
+import { onMockHit } from '@/lib/mock';
+import { formatDuration } from '@/lib/format';
+import { toggleTheme } from '@/lib/theme';
+import { isDesktop } from '@/lib/transport';
+import { listen } from '@tauri-apps/api/event';
 import { useActiveWorkspace, useWorkspaces, findCollection } from '@/store/workspaces';
 import { useHistory } from '@/store/history';
 import { useResponses, useTabRun } from '@/store/responses';
@@ -57,6 +65,7 @@ export default function App() {
   const [saveAsTabId, setSaveAsTabId] = useState<string | null>(null);
   const [exportCollectionId, setExportCollectionId] = useState<string | null | 'workspace'>(null);
   const [codeOpen, setCodeOpen] = useState(false);
+  const consoleOpen = useConsole((s) => s.open);
 
   const collection = activeTab ? findCollection(workspace, activeTab.collectionId) : null;
   const scope = useMemo(() => buildScope(workspace, collection), [workspace, collection]);
@@ -78,6 +87,20 @@ export default function App() {
     document.documentElement.classList.toggle('dark', useSession.getState().theme === 'dark');
   }, []);
 
+  // Mock server hits are logged regardless of whether the Mock panel is open.
+  useEffect(() => {
+    const unlisten = onMockHit((hit) => {
+      useConsole.getState().log({
+        kind: 'mock-hit',
+        summary: `${hit.method} ${hit.path} → ${hit.status}${hit.matched ? '' : ' (no route matched)'}`,
+        detail: `${hit.method} ${hit.path}\nStatus: ${hit.status}\nMatched a route: ${hit.matched ? 'yes' : 'no'}`,
+      });
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
   const doSend = async () => {
     if (!activeTab || activeTab.kind !== 'http') return;
     // The tab's own request may say `auth: 'inherit'` or rely on folder/collection
@@ -85,8 +108,30 @@ export default function App() {
     const request = resolveInheritedForNode(activeTab.request, collection, activeTab.nodeId);
     const controller = new AbortController();
     begin(activeTab.id, controller);
+    useConsole.getState().log({
+      kind: 'http-request',
+      summary: `→ ${request.method} ${request.url}`,
+      detail: `${request.method} ${request.url}\n\n${request.headers.filter((h) => h.enabled && h.key).map((h) => `${h.key}: ${h.value}`).join('\n')}`,
+      tabName: activeTab.name,
+    });
     const result = await send(request, scope, { signal: controller.signal });
     finish(activeTab.id, result);
+    if (result.ok) {
+      const r = result.response;
+      useConsole.getState().log({
+        kind: 'http-response',
+        summary: `← ${r.status} ${request.method} ${request.url} · ${formatDuration(r.timings.total)}`,
+        detail: `${r.status} ${r.statusText}\n\n${r.headers.map(([k, v]) => `${k}: ${v}`).join('\n')}\n\n${r.binary ? '<binary body>' : r.text.slice(0, 5000)}`,
+        tabName: activeTab.name,
+      });
+    } else {
+      useConsole.getState().log({
+        kind: 'http-error',
+        summary: `✕ ${request.method} ${request.url} — ${result.error.title}`,
+        detail: result.error.detail,
+        tabName: activeTab.name,
+      });
+    }
     addHistory({
       id: uid(),
       name: activeTab.name,
@@ -159,32 +204,89 @@ export default function App() {
     persistExamples((activeTab.request.examples ?? []).filter((e) => e.id !== id));
   };
 
+  // Shared by keyboard shortcuts and the native File/Edit/View menu — one
+  // dispatcher so the menu never drifts out of sync with what ⌘-keys do.
+  const runAction = (action: string) => {
+    switch (action) {
+      case 'command-palette':
+        setPaletteOpen((o) => !o);
+        break;
+      case 'new-tab':
+        openTab();
+        break;
+      case 'new-ws-tab':
+        openTab({ kind: 'ws', name: 'New WebSocket', ws: newWebSocketRequest() });
+        break;
+      case 'close-tab':
+        if (activeTabId) closeTab(activeTabId);
+        break;
+      case 'send':
+        if (activeTab?.kind === 'http') doSend();
+        break;
+      case 'save':
+        onSave();
+        break;
+      case 'toggle-sidebar':
+        setSession('sidebarOpen', !sidebarOpen);
+        break;
+      case 'toggle-console':
+        useConsole.getState().setOpen(!useConsole.getState().open);
+        break;
+      case 'toggle-theme':
+        toggleTheme();
+        break;
+      case 'import':
+        setImportOpen(true);
+        break;
+      case 'export-workspace':
+        setExportCollectionId('workspace');
+        break;
+      case 'view-source':
+        window.open('https://github.com/klejdi94/kapi', '_blank');
+        break;
+    }
+  };
+
   // Global keyboard shortcuts.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        setPaletteOpen((o) => !o);
+        runAction('command-palette');
       } else if (mod && e.key.toLowerCase() === 't') {
         e.preventDefault();
-        openTab();
+        runAction('new-tab');
       } else if (mod && e.key.toLowerCase() === 'w') {
         e.preventDefault();
-        if (activeTabId) closeTab(activeTabId);
-      } else if (mod && e.key === 'Enter' && activeTab?.kind === 'http') {
+        runAction('close-tab');
+      } else if (mod && e.key === 'Enter') {
         e.preventDefault();
-        doSend();
+        runAction('send');
       } else if (mod && e.key.toLowerCase() === 's') {
         e.preventDefault();
-        onSave();
+        runAction('save');
       } else if (mod && e.key === '\\') {
         e.preventDefault();
-        setSession('sidebarOpen', !sidebarOpen);
+        runAction('toggle-sidebar');
+      } else if (mod && e.key === '`') {
+        e.preventDefault();
+        runAction('toggle-console');
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTabId, sidebarOpen, activeTab]);
+
+  // The native File/Edit/View/Help menu (macOS menu bar) — every item just
+  // emits its id here, dispatched through the same runAction as shortcuts.
+  useEffect(() => {
+    if (!isDesktop()) return;
+    const unlisten = listen<string>('kapi://menu', (event) => runAction(event.payload));
+    return () => {
+      unlisten.then((fn) => fn());
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTabId, sidebarOpen, activeTab]);
 
@@ -198,6 +300,7 @@ export default function App() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-bg text-fg">
       <div className="flex min-h-0 flex-1">
+        <IconRail />
         {sidebarOpen && (
           <>
             <div className="shrink-0 overflow-hidden" style={{ width: sidebarWidth }}>
@@ -252,6 +355,7 @@ export default function App() {
         </div>
       </div>
 
+      {consoleOpen && <ConsolePanel />}
       <StatusBar />
       <ToastHost />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} extraCommands={extraCommands} />

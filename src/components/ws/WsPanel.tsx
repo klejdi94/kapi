@@ -7,6 +7,7 @@ import { connect, wsAvailable, type WsLogEntry } from '@/lib/ws';
 import { useWsConnState, useWsConnections } from '@/store/wsConnections';
 import { buildScope, resolve as resolveVar } from '@/lib/variables';
 import { useActiveWorkspace } from '@/store/workspaces';
+import { useConsole } from '@/store/console';
 import { toast } from '@/lib/toast';
 
 const STATUS_TONE = { idle: 'dim', connecting: 'warn', open: 'ok', closed: 'dim', error: 'danger' } as const;
@@ -56,14 +57,22 @@ export function WsPanel({
 
   const doConnect = async () => {
     setConnecting(tabId);
+    const url = resolve(request.url);
     try {
       const connection = await connect(request, scope, {
-        onMessage: (entry: WsLogEntry) => appendLog(tabId, entry),
-        onClose: (reason) => setClosed(tabId, reason),
+        onMessage: (entry: WsLogEntry) => {
+          appendLog(tabId, entry);
+          useConsole.getState().log({ kind: 'ws-receive', summary: `← ${url}: ${entry.text.slice(0, 120)}`, detail: entry.text, tabName: request.url });
+        },
+        onClose: (reason) => {
+          setClosed(tabId, reason);
+          useConsole.getState().log({ kind: 'ws-close', summary: `${url} closed — ${reason}`, detail: reason, tabName: request.url });
+        },
         onError: (message) => setError(tabId, message),
       });
       setOpen(tabId, connection);
       appendLog(tabId, { id: `sys-${Date.now()}`, direction: 'system', kind: 'text', text: 'Connected', at: Date.now() });
+      useConsole.getState().log({ kind: 'ws-connect', summary: `Connected ${url}`, detail: url, tabName: request.url });
     } catch (err) {
       setError(tabId, (err as Error).message);
       toast.error('Could not connect', (err as Error).message);
@@ -81,6 +90,7 @@ export function WsPanel({
     try {
       await state.connection.send(text);
       appendLog(tabId, { id: `sent-${Date.now()}`, direction: 'sent', kind: 'text', text, at: Date.now() });
+      useConsole.getState().log({ kind: 'ws-send', summary: `→ ${resolve(request.url)}: ${text.slice(0, 120)}`, detail: text, tabName: request.url });
       setDraft('');
     } catch (err) {
       toast.error('Send failed', (err as Error).message);

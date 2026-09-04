@@ -221,3 +221,26 @@ export function hostOf(url: string): string {
     return '';
   }
 }
+
+/** Common MIME types offered as a quick-pick when a header value is Content-Type. */
+export const COMMON_CONTENT_TYPES = [
+  'application/json',
+  'application/xml',
+  'application/x-www-form-urlencoded',
+  'multipart/form-data',
+  'text/plain',
+  'text/html',
+  'text/css',
+  'text/csv',
+  'text/xml',
+  'application/javascript',
+  'application/octet-stream',
+  'application/pdf',
+  'application/zip',
+  'application/graphql',
+  'application/ld+json',
+  'application/vnd.api+json',
+  'image/png',
+  'image/jpeg',
+  'image/svg+xml',
+];

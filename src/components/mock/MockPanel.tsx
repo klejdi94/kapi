@@ -8,7 +8,7 @@ import { newMockRoute } from '@/lib/factory';
 import { mockAvailable, onMockHit, startMockServer, stopMockServer } from '@/lib/mock';
 import { Button, IconButton, Badge, EmptyState, Select } from '@/components/ui/primitives';
 import { CodeEditor } from '@/components/ui/Editor';
-import { languageFor } from '@/lib/format';
+import { languageFor, COMMON_CONTENT_TYPES } from '@/lib/format';
 import { toast } from '@/lib/toast';
 import { methodVar } from '@/lib/methodColor';
 
@@ -223,8 +223,16 @@ export function MockPanel() {
                                   updateRoute(route.id, { headers });
                                 }}
                                 placeholder="Value"
+                                list={h.key.trim().toLowerCase() === 'content-type' ? `kapi-content-types-${route.id}-${i}` : undefined}
                                 className="h-6.5 flex-1 rounded border border-line bg-surface px-1.5 font-mono text-[11.5px] focus:border-accent focus:outline-none"
                               />
+                              {h.key.trim().toLowerCase() === 'content-type' && (
+                                <datalist id={`kapi-content-types-${route.id}-${i}`}>
+                                  {COMMON_CONTENT_TYPES.map((ct) => (
+                                    <option key={ct} value={ct} />
+                                  ))}
+                                </datalist>
+                              )}
                               <IconButton
                                 label="Remove header"
                                 onClick={() => updateRoute(route.id, { headers: route.headers.filter((_, j) => j !== i) })}
