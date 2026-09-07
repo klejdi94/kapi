@@ -33,9 +33,16 @@ export function findCollectionAndWorkspace(
 
 export async function createWorkspace(name: string): Promise<Workspace> {
   const workspace = newWorkspace(name);
+  // Matches the GUI's own `addWorkspace()` (workspaces.ts) exactly: the new
+  // workspace always becomes active, unconditionally. Getting this wrong
+  // (only setting it active when none existed yet) meant a natural
+  // create-workspace-then-create-collection chain with no explicit
+  // `workspaceId` silently landed in whatever workspace was already active
+  // instead of the one just created — confirmed for real against a live
+  // workspace file, not just reasoned about.
   await updateStore(STORE_WORKSPACES, EMPTY_STATE, (state) => ({
     workspaces: [...state.workspaces, workspace],
-    activeWorkspaceId: state.activeWorkspaceId || workspace.id,
+    activeWorkspaceId: workspace.id,
   }));
   return workspace;
 }
