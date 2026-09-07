@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { RunHistoryEntry } from '@/types';
@@ -25,6 +26,14 @@ export const useRunHistory = create<RunHistoryState>()(
   ),
 );
 
+/**
+ * `useMemo` around the filter, not a `.filter()` inline in the zustand
+ * selector — a selector that allocates a new array on every call never
+ * settles into a stable snapshot for `useSyncExternalStore` to compare
+ * against, which can spiral into "Maximum update depth exceeded" (seen for
+ * real in `WorkspaceOverview`'s equivalent workspace-wide selector).
+ */
 export function useRunHistoryFor(collectionId: string): RunHistoryEntry[] {
-  return useRunHistory((s) => s.entries.filter((e) => e.collectionId === collectionId));
+  const entries = useRunHistory((s) => s.entries);
+  return useMemo(() => entries.filter((e) => e.collectionId === collectionId), [entries, collectionId]);
 }

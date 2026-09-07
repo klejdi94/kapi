@@ -49,7 +49,7 @@ export const useSession = create<SessionState>()(
       sidebarOpen: true,
       sidebarWidth: 280,
       sidebarPanel: 'collections',
-      splitLayout: 'horizontal',
+      splitLayout: 'vertical',
       splitRatio: 48,
       theme: 'dark',
       requestTab: 'params',

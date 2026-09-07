@@ -24,7 +24,16 @@ let dataDirPromise: Promise<string> | null = null;
 let warnedUnavailable = false;
 
 function dataDir(): Promise<string> {
-  if (!dataDirPromise) dataDirPromise = appDataDir();
+  if (!dataDirPromise) {
+    // `desktop:dev` (Vite dev server, hot reload) and a real installed build
+    // share the exact same `identifier` in tauri.conf.json, so without this
+    // they'd also share the same app-data directory — running the app in dev
+    // mode would silently read and overwrite a user's real production
+    // workspace. `import.meta.env.DEV` is Vite's own dev/prod flag: true only
+    // when served by `vite`/`tauri dev`, always false in the `dist/` build a
+    // packaged app actually loads — so this costs nothing in production.
+    dataDirPromise = appDataDir().then((dir) => (import.meta.env.DEV ? join(dir, 'dev') : dir));
+  }
   return dataDirPromise;
 }
 
@@ -85,7 +94,34 @@ export function flushPendingWrites() {
   }
 }
 
-const STORE_NAMES = ['kapi.workspaces', 'kapi.session', 'kapi.history'];
+const STORE_NAMES = ['kapi.workspaces', 'kapi.session', 'kapi.history', 'kapi.run-history', 'kapi.openapi-history'];
+
+/**
+ * Re-reads a store's file from disk and reports whether it differs from what
+ * this process last wrote/read — without touching `lastWritten`, so a
+ * caller can decide whether it's safe to apply the change before committing
+ * to it. Exists for the case an external process (the `kapi-mcp` server, or
+ * another kapi window) wrote to disk while this one was already running:
+ * there's no file watcher, so without an explicit check like this the next
+ * unrelated local edit would silently clobber the external write on its next
+ * debounced flush.
+ */
+export async function peekExternalChange(name: string): Promise<string | null> {
+  if (!isDesktop()) return null;
+  try {
+    const path = await filePath(name);
+    if (!(await pathExists(path))) return null;
+    const text = await readTextFile(path);
+    return text && text !== lastWritten.get(name) ? text : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Call once a `peekExternalChange` text has actually been applied, so it isn't re-offered. */
+export function markExternalChangeApplied(name: string, text: string) {
+  lastWritten.set(name, text);
+}
 
 /** Total on-disk size of kapi's own data files, for the status bar. */
 export async function estimateDiskUsageBytes(): Promise<number> {

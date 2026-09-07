@@ -9,7 +9,8 @@ import type { Collection, MockRoute } from '@/types';
  */
 export function buildFeatureTourCollection(): Collection {
   const collection = newCollection('Feature tour');
-  collection.description = 'One real, sendable example per kapi feature — methods, auth, body types, redirects, and a live WebSocket.';
+  collection.description =
+    'One real, sendable example per kapi feature — methods, auth, body types, redirects, tests, Table/Chart views, and a live WebSocket.';
 
   const methods = newFolder('HTTP methods');
   methods.items = [
@@ -81,12 +82,40 @@ export function buildFeatureTourCollection(): Collection {
     newRequestNode('Image (binary)', { method: 'GET', url: 'https://httpbin.org/image/jpeg', auth: emptyAuth('none') }),
   ];
 
+  // A JSON array of flat objects is what turns on the response viewer's
+  // Table/Chart tabs — nothing above returns one (httpbin only echoes what
+  // you sent it). JSONPlaceholder is a free, stable, no-auth fake REST API
+  // made for exactly this. Each carries a test script too, so sending one
+  // shows Tests, Table and Chart together, not just view tabs on their own.
+  const usersTour = newRequestNode('List of users', {
+    method: 'GET',
+    url: 'https://jsonplaceholder.typicode.com/users',
+    auth: emptyAuth('none'),
+    testScript:
+      "pm.test('status is 200', () => pm.expect(pm.response.code).to.equal(200));\n" +
+      "pm.test('returns a list', () => pm.expect(Array.isArray(pm.response.json())).to.equal(true));",
+  });
+  usersTour.description = 'Send it, then open **Table** for a sortable grid or **Chart** to plot the `id` column.';
+
+  const postsTour = newRequestNode('List of posts', {
+    method: 'GET',
+    url: 'https://jsonplaceholder.typicode.com/posts',
+    auth: emptyAuth('none'),
+    testScript:
+      "pm.test('status is 200', () => pm.expect(pm.response.code).to.equal(200));\n" +
+      "pm.test('has 100 posts', () => pm.expect(pm.response.json().length).to.equal(100));",
+  });
+  postsTour.description = "100 posts with a numeric `userId` — a good one for the Chart tab's bar/line toggle.";
+
+  const dataViz = newFolder('Table & chart');
+  dataViz.items = [usersTour, postsTour];
+
   const ws = newWebSocketNode('Echo server', {
     url: 'wss://ws.postman-echo.com/raw',
     defaultMessage: 'Hello from kapi!',
   });
 
-  collection.items = [methods, auth, bodies, behavior, ws];
+  collection.items = [methods, auth, bodies, behavior, dataViz, ws];
   return collection;
 }
 

@@ -170,6 +170,21 @@ of a fresh download. A console that shows the whole truth — every request, res
 frame, mock hit and script log, with full headers and bodies.
 
 </td></tr>
+<tr><td width="50%" valign="top">
+
+**A response that's a table or a chart, when it is one**
+A JSON array of objects, or a CSV body, gets a real sortable table and a bar/line chart for free —
+pick the columns, export the table back out as CSV. Hidden entirely when a response isn't shaped
+like data, same as Preview only shows up for things it can actually render.
+
+</td><td width="50%" valign="top">
+
+**A workspace overview, not just a blank tab**
+Close every tab and you land on a real page instead of nothing: pass/fail rate, requests-per-day
+sparkline, and a feed of recent runs and OpenAPI syncs across the whole workspace — most of it fed
+by an AI CLI working through kapi's MCP server rather than typed by hand.
+
+</td></tr>
 </table>
 
 ---
@@ -190,6 +205,30 @@ Exits `0` only when every request's tests passed and none errored — `1` on a t
 usage/config problem — so it drops straight into a CI step. `--json` prints one JSON object instead
 of the human-readable summary. `--folder <name>` scopes the run the same way right-clicking a folder
 does in the app.
+
+---
+
+## Let an AI CLI drive kapi
+
+kapi ships its own [MCP](https://modelcontextprotocol.io) server — Claude Code, Codex or Gemini can
+create requests, run a test battery, and keep a collection in sync with a backend's OpenAPI/Swagger
+spec over time, directly in your workspace. Nothing about the AI CLI's own credentials is ever
+touched; kapi only reads and writes the same JSON files the app itself uses.
+
+```bash
+git clone https://github.com/klejdi94/kapi.git && cd kapi && npm install
+npm run mcp:install
+```
+
+Registers `kapi` on whichever of `claude`/`codex`/`gemini` is on your PATH, and installs a companion
+skill for Claude Code so it knows the right order of operations without being told each time. Then,
+from any backend project's own terminal:
+
+> "Use kapi to test this API — import its OpenAPI spec and run the tests."
+
+If no workspace exists yet, the AI is guided step by step to create one rather than failing. If kapi
+is already open, bring its window to the front after a change — it notices and reloads automatically
+rather than risking a stale save overwriting what was just built.
 
 ---
 
@@ -230,6 +269,8 @@ npm run desktop:dev     # native window + Vite dev server, hot reload
 
 `npm run dev` (plain Vite in a browser tab) is fine for fast UI iteration, but requests to other
 origins hit normal browser CORS restrictions there — only the desktop shell bypasses them.
+`desktop:dev` writes to a `dev` subfolder of kapi's own app-data directory, so it never touches (or
+gets confused with) a real installed build's data.
 
 ```bash
 npm run desktop:build   # bundle into src-tauri/target/release/bundle/
@@ -247,7 +288,7 @@ Rust side.
 GitHub's runners and attaches them to a draft release:
 
 ```bash
-git tag v0.3.0 && git push origin v0.3.0
+git tag v0.3.1 && git push origin v0.3.1
 ```
 
 ---

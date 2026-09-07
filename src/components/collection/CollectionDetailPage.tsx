@@ -9,14 +9,16 @@ import { CodeEditor } from '@/components/ui/Editor';
 import { useActiveWorkspace, useWorkspaces } from '@/store/workspaces';
 import { useRunner } from '@/store/runner';
 import { useRunHistoryFor } from '@/store/runHistory';
+import { useOpenApiHistoryFor } from '@/store/openapiHistory';
 import { RunHistoryView } from './RunHistoryView';
+import { SpecHistoryView } from './SpecHistoryView';
 import { renderCollectionDocs } from '@/lib/docs';
 import { countByType } from '@/lib/tree';
 import { saveFile } from '@/lib/saveFile';
 import { toast } from '@/lib/toast';
 import { buildScope } from '@/lib/variables';
 
-type DetailTab = 'overview' | 'auth' | 'headers' | 'variables' | 'scripts' | 'docs' | 'history';
+type DetailTab = 'overview' | 'auth' | 'headers' | 'variables' | 'scripts' | 'docs' | 'history' | 'spec';
 type ScriptPhase = 'pre' | 'test';
 
 const SCRIPT_PLACEHOLDER: Record<ScriptPhase, string> = {
@@ -35,6 +37,7 @@ export function CollectionDetailPage({ collection, onExport }: { collection: Col
   const updateCollection = useWorkspaces((s) => s.updateCollection);
   const scope = buildScope(workspace, collection);
   const runHistoryCount = useRunHistoryFor(collection.id).length;
+  const specHistoryCount = useOpenApiHistoryFor(collection.id).length;
   const [tab, setTab] = useState<DetailTab>('overview');
   const [scriptPhase, setScriptPhase] = useState<ScriptPhase>('pre');
   const [copied, setCopied] = useState(false);
@@ -101,6 +104,7 @@ export function CollectionDetailPage({ collection, onExport }: { collection: Col
             { value: 'scripts', label: 'Scripts', dot: !!(collection.preRequestScript?.trim() || collection.testScript?.trim()) },
             { value: 'docs', label: 'Docs' },
             { value: 'history', label: 'History', count: runHistoryCount },
+            { value: 'spec', label: 'Spec History', count: specHistoryCount },
           ]}
         />
       </div>
@@ -202,6 +206,7 @@ export function CollectionDetailPage({ collection, onExport }: { collection: Col
         )}
 
         {tab === 'history' && <RunHistoryView collectionId={collection.id} />}
+        {tab === 'spec' && <SpecHistoryView collectionId={collection.id} />}
       </div>
     </div>
   );

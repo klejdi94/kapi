@@ -17,6 +17,7 @@ import { CodeSnippetModal } from '@/components/modals/CodeSnippetModal';
 import { PromptModal } from '@/components/modals/PromptModal';
 import { CollectionDetailPage } from '@/components/collection/CollectionDetailPage';
 import { FolderDetailPage } from '@/components/collection/FolderDetailPage';
+import { WorkspaceOverview } from '@/components/workspace/WorkspaceOverview';
 import { TokenInspectorModal } from '@/components/modals/TokenInspectorModal';
 import { useTokenInspector } from '@/store/tokenInspector';
 import { writeTabRequest, writeTabWs } from '@/lib/tabWrite';
@@ -34,6 +35,7 @@ import { formatBytes, formatDuration } from '@/lib/format';
 import { toggleTheme } from '@/lib/theme';
 import { isDesktop } from '@/lib/transport';
 import { checkForUpdate, downloadAndInstallUpdate } from '@/lib/updater';
+import { peekExternalChange, markExternalChangeApplied } from '@/lib/fileStorage';
 import { pushToast } from '@/lib/toast';
 import { listen } from '@tauri-apps/api/event';
 import { useActiveWorkspace, useWorkspaces, findCollection } from '@/store/workspaces';
@@ -99,11 +101,11 @@ function describeExchange(response: KapiResponse): string {
 }
 
 export default function App() {
-  const tabs = useSession((s) => s.tabs);
   const activeTab = useActiveTab();
   const activeTabId = useSession((s) => s.activeTabId);
   const patchTab = useSession((s) => s.patchTab);
   const openTab = useSession((s) => s.openTab);
+  const openCollectionTab = useSession((s) => s.openCollectionTab);
   const closeTab = useSession((s) => s.closeTab);
   const closeOtherTabs = useSession((s) => s.closeOtherTabs);
   const closeAllTabs = useSession((s) => s.closeAllTabs);
@@ -117,6 +119,7 @@ export default function App() {
   const setGlobals = useWorkspaces((s) => s.setGlobals);
   const updateEnvironmentStore = useWorkspaces((s) => s.updateEnvironment);
   const updateCollectionStore = useWorkspaces((s) => s.updateCollection);
+  const addCollection = useWorkspaces((s) => s.addCollection);
   const addHistory = useHistory((s) => s.add);
 
   const begin = useResponses((s) => s.begin);
@@ -138,12 +141,6 @@ export default function App() {
   const activeFolderLocated = activeTab?.kind === 'folder' && collection && activeTab.nodeId ? locate(collection.items, activeTab.nodeId) : null;
   const activeFolder = activeFolderLocated?.node.type === 'folder' ? activeFolderLocated.node : null;
   const scope = useMemo(() => buildScope(workspace, collection), [workspace, collection]);
-
-  // First-run/no-tabs safety net: the session store always seeds one, but a
-  // hard localStorage wipe mid-session could leave this empty.
-  useEffect(() => {
-    if (!tabs.length) openTab();
-  }, [tabs.length, openTab]);
 
   // The collection tree dispatches this rather than importing App state directly.
   useEffect(() => {
@@ -485,6 +482,40 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Reload the workspace file from disk whenever the window regains focus,
+  // if something outside this process changed it (the kapi-mcp server, or
+  // another kapi window) — there's no file watcher, so without this the next
+  // local edit here would silently overwrite that external write on its next
+  // debounced flush. Skipped when a tab has unsaved edits, so an in-progress
+  // draft is never thrown away without the user seeing it happen.
+  useEffect(() => {
+    if (!isDesktop()) return;
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    (async () => {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      const un = await getCurrentWindow().onFocusChanged(async ({ payload: focused }) => {
+        if (!focused) return;
+        const text = await peekExternalChange('kapi.workspaces');
+        if (!text) return;
+        const hasDirtyTab = useSession.getState().tabs.some((t) => t.dirty);
+        if (hasDirtyTab) {
+          toast.info('Workspace changed on disk', 'A tab has unsaved edits, so it was not reloaded automatically.');
+          return;
+        }
+        await useWorkspaces.persist.rehydrate();
+        markExternalChangeApplied('kapi.workspaces', text);
+        toast.info('Workspace updated', 'Reloaded — it changed outside kapi (e.g. the kapi-mcp server).');
+      });
+      if (disposed) un();
+      else unlisten = un;
+    })();
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, []);
+
   // Global keyboard shortcuts.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -558,6 +589,27 @@ export default function App() {
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <TabBar />
+          {!activeTab && (
+            <WorkspaceOverview
+              workspace={workspace}
+              actions={{
+                onNewRequest: () => openTab(),
+                onAskAi: () => {
+                  setSession('sidebarPanel', 'ai');
+                  setSession('sidebarOpen', true);
+                },
+                onImport: () => setImportOpen(true),
+                onNewCollection: () => {
+                  const id = addCollection();
+                  openCollectionTab(id, 'New collection');
+                },
+                onDiscover: () => {
+                  setSession('sidebarPanel', 'discovery');
+                  setSession('sidebarOpen', true);
+                },
+              }}
+            />
+          )}
           {activeTab && activeTab.kind === 'ws' && activeTab.ws && (
             <WsPanel tabId={activeTab.id} request={activeTab.ws} onChange={onChangeWs} collection={collection} />
           )}

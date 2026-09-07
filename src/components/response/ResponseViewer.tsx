@@ -7,6 +7,9 @@ import { PrettyView, RawView, PreviewView, HeadersView, CookiesView, TimingsView
 import { JsonTree } from './JsonTree';
 import { ResponseDiffView } from './ResponseDiffView';
 import { StreamView } from './StreamView';
+import { TableView } from './TableView';
+import { ChartView } from './ChartView';
+import { extractTableData, numericColumns } from '@/lib/tabularData';
 import type { SseEvent } from '@/lib/sse';
 import { ErrorView } from './ErrorView';
 import { TestsView } from './TestsView';
@@ -112,6 +115,11 @@ export function ResponseViewer({
   }
 
   const cookieCount = response.headers.filter(([n]) => n.toLowerCase() === 'set-cookie').length;
+  // Needed up front (not just when the tab is open) to decide whether the
+  // Table/Chart tabs show up at all — same "hidden unless there's something
+  // to show" idiom as the Stream tab below.
+  const tableData = extractTableData(response);
+  const canChart = !!tableData && numericColumns(tableData).length > 0;
 
   const download = async () => {
     if (!response.blob) return;
@@ -139,6 +147,8 @@ export function ResponseViewer({
               { value: 'cookies', label: 'Cookies', count: cookieCount },
               { value: 'timings', label: 'Timings' },
               { value: 'tests', label: 'Tests', count: testResults?.length ?? 0 },
+              ...(tableData ? [{ value: 'table' as const, label: 'Table', count: tableData.rows.length }] : []),
+              ...(canChart ? [{ value: 'chart' as const, label: 'Chart' }] : []),
               ...(sseEvents?.length ? [{ value: 'stream' as const, label: 'Stream', count: sseEvents.length }] : []),
             ] as const
           }
@@ -230,6 +240,8 @@ export function ResponseViewer({
               <JsonTree value={jsonValue} onExtractVariable={onExtractVariable} />
             ))}
           {view === 'stream' && <StreamView events={sseEvents ?? []} loading={loading} />}
+          {view === 'table' && tableData && <TableView table={tableData} />}
+          {view === 'chart' && tableData && <ChartView table={tableData} />}
         </div>
       )}
     </div>

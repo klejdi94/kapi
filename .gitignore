@@ -2,3 +2,7 @@ node_modules
 dist
 *.local
 .DS_Store
+
+# Local AI CLI config a contributor's own `gemini mcp add` may create in the
+# repo root if run without -s user — not project source.
+.gemini/

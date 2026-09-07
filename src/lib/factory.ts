@@ -242,7 +242,37 @@ export function seedWorkspace(): Workspace {
     newRequestNode('500 Server Error', { method: 'GET', url: 'https://httpbin.org/status/500', auth: emptyAuth('none') }),
   ];
 
-  collection.items = [simpleGet, jsonPost, anyApi, authed, image, statuses];
+  // A JSON array of flat objects is what turns on the response viewer's
+  // Table/Chart tabs — httpbin only ever echoes back what you sent it, so
+  // none of the requests above trigger them. JSONPlaceholder is a free,
+  // stable, no-auth fake REST API made for exactly this kind of demo. Each
+  // one also carries a test script, so sending it shows off Tests, Table and
+  // Chart together rather than just the two view tabs on their own.
+  const usersDemo = newRequestNode('List of users', {
+    method: 'GET',
+    url: 'https://jsonplaceholder.typicode.com/users',
+    auth: emptyAuth('none'),
+    testScript:
+      "pm.test('status is 200', () => pm.expect(pm.response.code).to.equal(200));\n" +
+      "pm.test('returns a list', () => pm.expect(Array.isArray(pm.response.json())).to.equal(true));",
+  });
+  usersDemo.description =
+    'Returns a JSON array of user objects — send it, then open the **Table** tab to see it as a sortable grid, or **Chart** to plot the `id` column.';
+
+  const postsDemo = newRequestNode('List of posts', {
+    method: 'GET',
+    url: 'https://jsonplaceholder.typicode.com/posts',
+    auth: emptyAuth('none'),
+    testScript:
+      "pm.test('status is 200', () => pm.expect(pm.response.code).to.equal(200));\n" +
+      "pm.test('has 100 posts', () => pm.expect(pm.response.json().length).to.equal(100));",
+  });
+  postsDemo.description = '100 posts, each with a numeric `userId` — a good one to try the Chart tab\'s bar/line toggle on.';
+
+  const tableDemo = newFolder('Table & chart demo');
+  tableDemo.items = [usersDemo, postsDemo];
+
+  collection.items = [simpleGet, jsonPost, anyApi, authed, image, statuses, tableDemo];
   collection.variables = [kv({ key: 'base', value: 'https://httpbin.org' }), kv({ enabled: false })];
 
   const env = newEnvironment('Local');

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Folder, FolderTree, Pin, PinOff, Plug, Plus, X } from 'lucide-react';
 import clsx from 'clsx';
 import { useSession } from '@/store/session';
@@ -19,11 +19,21 @@ export function TabBar() {
   const openTab = useSession((s) => s.openTab);
   const workspace = useActiveWorkspace();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const activeButtonRef = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
 
   // Pinned tabs sort first, otherwise the order the user opened them in — a
   // stable sort so pinning/unpinning never shuffles the rest of the row.
   const orderedTabs = useMemo(() => [...tabs].sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned)), [tabs]);
+
+  // With enough tabs open the strip scrolls, and the browser never scrolls a
+  // newly-activated tab into view on its own — opening one past the visible
+  // edge (or switching to one that's already off-screen) left it hidden past
+  // the right edge, right where "+"/the close-tabs chevron are, looking like
+  // the tab bar was stuck on the oldest tabs instead of following you.
+  useEffect(() => {
+    activeButtonRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [activeTabId]);
 
   const displayName = (tab: Tab) => {
     if (tab.kind === 'collection') return findCollection(workspace, tab.collectionId)?.name ?? tab.name;
@@ -60,10 +70,25 @@ export function TabBar() {
               </span>
             );
 
+          // A `<div role="button">`, not a real `<button>` — confirmed by a
+          // user report that right-click did nothing here while it worked
+          // everywhere else (e.g. the collection tree's rows, which are also
+          // plain divs): WKWebView on macOS doesn't reliably deliver the
+          // `contextmenu` event to native `<button>` elements, so a real
+          // `<button>` here silently ate every right-click.
           return (
-            <button
+            <div
               key={tab.id}
+              ref={active ? activeButtonRef : undefined}
+              role="button"
+              tabIndex={0}
               onClick={() => setActiveTab(tab.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setActiveTab(tab.id);
+                }
+              }}
               onMouseDown={(e) => {
                 if (e.button === 1) {
                   e.preventDefault();
@@ -76,7 +101,7 @@ export function TabBar() {
               }}
               title={tab.pinned ? displayName(tab) : undefined}
               className={clsx(
-                'group flex h-9 shrink-0 items-center gap-2 border-r border-line text-left',
+                'group flex h-9 shrink-0 cursor-default items-center gap-2 border-r border-line text-left',
                 tab.pinned ? 'w-10 justify-center px-0' : 'min-w-[128px] max-w-[190px] px-3',
                 active ? 'bg-bg' : 'bg-surface-2 hover:bg-surface-3',
               )}
@@ -98,7 +123,7 @@ export function TabBar() {
                   </span>
                 </>
               )}
-            </button>
+            </div>
           );
         })}
       </div>

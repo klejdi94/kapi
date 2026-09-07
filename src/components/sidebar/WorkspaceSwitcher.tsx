@@ -81,9 +81,12 @@ export function WorkspaceSwitcher({ onOpenImport, onOpenExport }: { onOpenImport
     setOpen(false);
   };
 
+  const collectionCount = active?.collections.length ?? 0;
+  const environmentCount = active?.environments.length ?? 0;
+
   return (
     <div className="relative border-b border-line p-2" ref={ref}>
-      <div className="flex h-9 w-full items-center gap-2 rounded-md px-2 hover:bg-surface-2">
+      <div className="flex w-full items-center gap-2.5 rounded-xl border border-line bg-surface p-2 transition-colors hover:border-line-strong hover:bg-surface-2">
         <div className="relative shrink-0" ref={iconRef}>
           <button
             onClick={(e) => {
@@ -91,7 +94,8 @@ export function WorkspaceSwitcher({ onOpenImport, onOpenExport }: { onOpenImport
               setIconPickerOpen((o) => !o);
             }}
             title="Choose an icon"
-            className="flex h-6 w-6 items-center justify-center rounded bg-accent text-[13px] font-bold text-accent-fg hover:brightness-110"
+            className="flex h-10 w-10 items-center justify-center rounded-lg text-[17px] font-bold text-accent-fg shadow-sm hover:brightness-110"
+            style={{ background: 'linear-gradient(135deg, var(--accent), var(--info))' }}
           >
             {active?.icon || (active?.name || 'K').slice(0, 1).toUpperCase()}
           </button>
@@ -127,7 +131,12 @@ export function WorkspaceSwitcher({ onOpenImport, onOpenExport }: { onOpenImport
           )}
         </div>
         <button onClick={() => setOpen((o) => !o)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-          <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-fg">{active?.name || 'Workspace'}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[13.5px] font-semibold text-fg">{active?.name || 'Workspace'}</span>
+            <span className="block truncate text-[10.5px] text-faint">
+              {collectionCount} collection{collectionCount === 1 ? '' : 's'} · {environmentCount} environment{environmentCount === 1 ? '' : 's'}
+            </span>
+          </span>
           <ChevronsUpDown size={13} className="shrink-0 text-faint" />
         </button>
       </div>

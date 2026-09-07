@@ -370,5 +370,18 @@ export interface RunHistoryEntry {
   results: RunHistoryResult[];
 }
 
-export type ResponseView = 'pretty' | 'tree' | 'raw' | 'preview' | 'headers' | 'cookies' | 'timings' | 'tests' | 'stream';
+/** One "sync this collection with a backend's OpenAPI spec" — kept so the history of what a backend's API surface looked like over time is visible, the same spirit as `RunHistoryEntry` for test runs. */
+export interface OpenApiHistoryEntry {
+  id: string;
+  collectionId: string;
+  collectionName: string;
+  at: number;
+  /** Where the spec came from — a URL or a local file path, for display only. */
+  source: string;
+  added: string[];
+  removed: string[];
+  changed: string[];
+}
+
+export type ResponseView = 'pretty' | 'tree' | 'raw' | 'preview' | 'headers' | 'cookies' | 'timings' | 'tests' | 'stream' | 'table' | 'chart';
 export type RequestTabKey = 'params' | 'body' | 'headers' | 'auth' | 'scripts' | 'docs' | 'settings';
