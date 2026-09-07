@@ -16,6 +16,8 @@ export interface KV {
   fileName?: string;
   /** Marks a header kapi generated (Content-Type, Host…) rather than the user. */
   auto?: boolean;
+  /** Variable rows only: masks the value in the UI and keeps it out of what's sent to the AI. */
+  secret?: boolean;
 }
 
 export type AuthType =
@@ -125,6 +127,8 @@ export interface RequestNode {
   name: string;
   request: RequestDef;
   pinned?: boolean;
+  /** Markdown notes shown in the Docs tab and included in exported collection docs. */
+  description?: string;
 }
 
 /** A saved WebSocket connection — deliberately much simpler than RequestDef: no body modes, no methods. */
@@ -202,6 +206,19 @@ export interface MockServerConfig {
   routes: MockRoute[];
 }
 
+/** A cookie captured from a `Set-Cookie` response header, carried into later requests to matching hosts. */
+export interface StoredCookie {
+  name: string;
+  value: string;
+  domain: string;
+  path: string;
+  /** Epoch ms; null means a session cookie (no Expires/Max-Age given). */
+  expires: number | null;
+  secure: boolean;
+  httpOnly: boolean;
+  setAt: number;
+}
+
 export interface Workspace {
   id: string;
   name: string;
@@ -216,6 +233,8 @@ export interface Workspace {
   /** Absolute path to a local folder this workspace is synced to as a git repo. */
   gitRepoPath: string | null;
   mockServer: MockServerConfig;
+  /** Cookies picked up from responses, sent back automatically to matching hosts — like a browser's jar. */
+  cookies: StoredCookie[];
 }
 
 /* ---------------------------------------------------------------- responses */
@@ -289,11 +308,13 @@ export interface Tab {
   nodeId: string | null;
   collectionId: string | null;
   name: string;
-  kind: 'http' | 'ws';
+  kind: 'http' | 'ws' | 'collection' | 'folder';
   request: RequestDef;
   /** Only set when `kind === 'ws'`. */
   ws: WebSocketRequestDef | null;
   dirty: boolean;
+  /** Pinned tabs sort first and survive "Close other tabs" / "Close all tabs". */
+  pinned?: boolean;
 }
 
 export interface HistoryEntry {
@@ -310,4 +331,4 @@ export interface HistoryEntry {
 }
 
 export type ResponseView = 'pretty' | 'tree' | 'raw' | 'preview' | 'headers' | 'cookies' | 'timings' | 'tests';
-export type RequestTabKey = 'params' | 'body' | 'headers' | 'auth' | 'scripts' | 'settings';
+export type RequestTabKey = 'params' | 'body' | 'headers' | 'auth' | 'scripts' | 'docs' | 'settings';

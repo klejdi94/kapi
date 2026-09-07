@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { Collection, KV, RequestDef, RequestTabKey } from '@/types';
+import type { Collection, RequestDef, RequestTabKey } from '@/types';
 import { Segmented } from '@/components/ui/primitives';
 import { UrlBar } from './UrlBar';
 import { ParamsTab, type UrlVariable } from './ParamsTab';
@@ -8,10 +8,14 @@ import { AuthTab } from './AuthTab';
 import { BodyTab } from './BodyTab';
 import { SettingsTab } from './SettingsTab';
 import { ScriptsTab } from './ScriptsTab';
+import { DocsTab } from './DocsTab';
 import { kv, withTrailingBlank } from '@/lib/factory';
 import { mergeParamsFromUrl, pathVariableNames, unresolvedVariables } from '@/lib/send';
 import { AUTH_LABELS, effectiveAuth } from '@/lib/auth';
-import { ancestorsOf } from '@/lib/tree';
+import { ancestorsOf, locate } from '@/lib/tree';
+import { upsertWorkspaceVariable } from '@/lib/varWrite';
+import { fetchGraphQLSchema } from '@/lib/graphqlIntrospection';
+import { useGraphQLSchema, useGraphQLSchemaFor } from '@/store/graphqlSchema';
 import { buildBody } from '@/lib/body';
 import { buildScope, collectUsages, resolve as resolveVar } from '@/lib/variables';
 import { useSession } from '@/store/session';
@@ -48,8 +52,7 @@ export function RequestEditor({
   const requestTab = useSession((s) => s.requestTab);
   const setRequestTab = useSession((s) => s.set);
   const workspace = useActiveWorkspace();
-  const updateEnvironment = useWorkspaces((s) => s.updateEnvironment);
-  const setGlobals = useWorkspaces((s) => s.setGlobals);
+  const updateNode = useWorkspaces((s) => s.updateNode);
 
   const scope = useMemo(() => buildScope(workspace, collection), [workspace, collection]);
   const resolve = (text: string) => resolveVar(text, scope);
@@ -78,21 +81,18 @@ export function RequestEditor({
     dynamic: usage.entry?.source === 'dynamic',
   }));
 
-  /**
-   * Writes into the active environment, falling back to globals when no
-   * environment is selected — the two scopes every request can see.
-   */
-  const setUrlVariable = (name: string, value: string) => {
-    const environment = workspace.environments.find((e) => e.id === workspace.activeEnvironmentId);
-    const upsert = (rows: KV[]) => {
-      const index = rows.findIndex((r) => r.key.trim() === name);
-      if (index === -1) return withTrailingBlank([...rows.filter((r) => r.key.trim()), kv({ key: name, value })]);
-      const next = [...rows];
-      next[index] = { ...next[index], value, enabled: true };
-      return next;
-    };
-    if (environment) updateEnvironment(environment.id, { variables: upsert(environment.variables) });
-    else setGlobals(upsert(workspace.globals));
+  const setUrlVariable = upsertWorkspaceVariable;
+
+  const graphqlUrl = resolve(request.url);
+  const graphqlSchemaEntry = useGraphQLSchemaFor(graphqlUrl);
+  const fetchGraphqlSchema = async () => {
+    useGraphQLSchema.getState().setLoading(graphqlUrl);
+    try {
+      const summary = await fetchGraphQLSchema(request, scope);
+      useGraphQLSchema.getState().setResult(graphqlUrl, summary);
+    } catch (err) {
+      useGraphQLSchema.getState().setError(graphqlUrl, (err as Error).message);
+    }
   };
 
   const builtBody = buildBody(request, scope);
@@ -108,6 +108,8 @@ export function RequestEditor({
   const enabledParamCount = request.params.filter((r) => r.enabled && r.key.trim()).length;
   const hasBody = request.body.mode !== 'none';
   const hasScripts = !!(request.preRequestScript?.trim() || request.testScript?.trim());
+  const savedNode = collection && nodeId ? locate(collection.items, nodeId) : null;
+  const description = savedNode?.node.type === 'request' ? (savedNode.node.description ?? '') : '';
 
   const set = <K extends keyof RequestDef>(key: K, value: RequestDef[K]) => onChange({ ...request, [key]: value });
 
@@ -153,6 +155,7 @@ export function RequestEditor({
             { value: 'headers', label: 'Headers', count: enabledHeaderCount },
             { value: 'auth', label: 'Auth', dot: resolvedAuth.type !== 'none' },
             { value: 'scripts', label: 'Scripts', dot: hasScripts },
+            { value: 'docs', label: 'Docs', dot: !!description.trim() },
             { value: 'settings', label: 'Settings' },
           ]}
         />
@@ -179,6 +182,10 @@ export function RequestEditor({
             onChange={(body) => set('body', body)}
             resolve={resolve}
             disabledReason={request.method === 'GET' || request.method === 'HEAD' ? `${request.method} requests are sent without a body.` : null}
+            graphqlSchema={graphqlSchemaEntry.summary}
+            graphqlLoading={graphqlSchemaEntry.loading}
+            graphqlError={graphqlSchemaEntry.error}
+            onFetchGraphqlSchema={fetchGraphqlSchema}
           />
         )}
         {requestTab === 'headers' && (
@@ -202,6 +209,13 @@ export function RequestEditor({
               pre: !!collection?.preRequestScript?.trim(),
               test: !!collection?.testScript?.trim(),
             }}
+          />
+        )}
+        {requestTab === 'docs' && (
+          <DocsTab
+            description={description}
+            canEdit={!!(collection && nodeId)}
+            onChange={(next) => collection && nodeId && updateNode(collection.id, nodeId, { description: next })}
           />
         )}
         {requestTab === 'settings' && <SettingsTab settings={request.settings} onChange={(settings) => set('settings', settings)} />}

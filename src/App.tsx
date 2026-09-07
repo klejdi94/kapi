@@ -15,12 +15,21 @@ import { SaveAsModal } from '@/components/modals/SaveAsModal';
 import { ExportModal } from '@/components/modals/ExportModal';
 import { CodeSnippetModal } from '@/components/modals/CodeSnippetModal';
 import { PromptModal } from '@/components/modals/PromptModal';
-import { CollectionScriptsModal } from '@/components/modals/CollectionScriptsModal';
+import { CollectionDetailPage } from '@/components/collection/CollectionDetailPage';
+import { FolderDetailPage } from '@/components/collection/FolderDetailPage';
+import { TokenInspectorModal } from '@/components/modals/TokenInspectorModal';
+import { useTokenInspector } from '@/store/tokenInspector';
+import { writeTabRequest, writeTabWs } from '@/lib/tabWrite';
+import { upsertWorkspaceVariable } from '@/lib/varWrite';
+import { RunnerPanel } from '@/components/runner/RunnerPanel';
+import { useRunner } from '@/store/runner';
 import { WsPanel } from '@/components/ws/WsPanel';
 import { ConsolePanel } from '@/components/console/ConsolePanel';
 import { useSession, useActiveTab } from '@/store/session';
 import { useConsole } from '@/store/console';
 import { onMockHit } from '@/lib/mock';
+import { onDiscoveryCapture } from '@/lib/discovery';
+import { useDiscovery } from '@/store/discovery';
 import { formatBytes, formatDuration } from '@/lib/format';
 import { toggleTheme } from '@/lib/theme';
 import { isDesktop } from '@/lib/transport';
@@ -30,57 +39,16 @@ import { useHistory } from '@/store/history';
 import { useResponses, useTabRun } from '@/store/responses';
 import { buildScope } from '@/lib/variables';
 import { resolveInheritedForNode } from '@/lib/inherit';
-import { send } from '@/lib/send';
+import { locate } from '@/lib/tree';
+import { sendWithCookies } from '@/lib/sendWithCookies';
 import { uid, newWebSocketRequest } from '@/lib/factory';
 import { toast } from '@/lib/toast';
 import { responseToExample, exampleToResponse } from '@/lib/examples';
-import { runScript, responseToScriptInput, type ScriptContext, type TestResult } from '@/lib/scripting';
+import { chainScripts, responseToScriptInput, type ScriptVars, type ChainOutcome, type TestResult } from '@/lib/scripting';
 import { useTestResults } from '@/store/testResults';
 import { withTrailingBlank } from '@/lib/factory';
-import type { KapiResponse, KV, RequestDef, SavedExample, SentRequest, WebSocketRequestDef } from '@/types';
+import type { KapiResponse, RequestDef, SavedExample, SentRequest, WebSocketRequestDef } from '@/types';
 import { FileDown, X } from 'lucide-react';
-
-/** The three writable variable scopes a script can touch, threaded between chained scripts. */
-interface ScriptVars {
-  environment: KV[];
-  globals: KV[];
-  collectionVariables: KV[];
-}
-
-interface ChainOutcome {
-  vars: ScriptVars;
-  ran: boolean;
-  logs: string[];
-  errors: string[];
-  tests: TestResult[];
-}
-
-/**
- * Runs collection-level then request-level scripts, feeding each one's variable
- * writes into the next — matching Postman's execution order, so a collection
- * script can set up a value the request script then refines.
- */
-function chainScripts(
-  scripts: (string | undefined)[],
-  vars: ScriptVars,
-  base: Pick<ScriptContext, 'request' | 'response'>,
-): ChainOutcome {
-  const out: ChainOutcome = { vars, ran: false, logs: [], errors: [], tests: [] };
-  for (const script of scripts) {
-    if (!script?.trim()) continue;
-    out.ran = true;
-    const result = runScript(script, { ...base, ...out.vars });
-    out.vars = {
-      environment: result.environment,
-      globals: result.globals,
-      collectionVariables: result.collectionVariables,
-    };
-    out.logs.push(...result.logs);
-    if (result.error) out.errors.push(result.error);
-    out.tests.push(...result.tests);
-  }
-  return out;
-}
 
 const EMPTY_TESTS: TestResult[] = [];
 
@@ -132,7 +100,6 @@ export default function App() {
   const tabs = useSession((s) => s.tabs);
   const activeTab = useActiveTab();
   const activeTabId = useSession((s) => s.activeTabId);
-  const updateTabRequest = useSession((s) => s.updateTabRequest);
   const patchTab = useSession((s) => s.patchTab);
   const openTab = useSession((s) => s.openTab);
   const closeTab = useSession((s) => s.closeTab);
@@ -145,12 +112,9 @@ export default function App() {
   const setSession = useSession((s) => s.set);
 
   const workspace = useActiveWorkspace();
-  const updateRequest = useWorkspaces((s) => s.updateRequest);
-  const updateWebSocketRequest = useWorkspaces((s) => s.updateWebSocketRequest);
   const setGlobals = useWorkspaces((s) => s.setGlobals);
   const updateEnvironmentStore = useWorkspaces((s) => s.updateEnvironment);
   const updateCollectionStore = useWorkspaces((s) => s.updateCollection);
-  const updateTabWs = useSession((s) => s.updateTabWs);
   const addHistory = useHistory((s) => s.add);
 
   const begin = useResponses((s) => s.begin);
@@ -164,11 +128,13 @@ export default function App() {
   const [exportCollectionId, setExportCollectionId] = useState<string | null | 'workspace'>(null);
   const [codeOpen, setCodeOpen] = useState(false);
   const [exampleNameOpen, setExampleNameOpen] = useState(false);
-  const [scriptsCollectionId, setScriptsCollectionId] = useState<string | null>(null);
+  const [extractVariable, setExtractVariable] = useState<{ suggestedName: string; value: string } | null>(null);
   const consoleOpen = useConsole((s) => s.open);
   const testResults = useTestResults((s) => (activeTabId ? (s.byTab[activeTabId] ?? EMPTY_TESTS) : EMPTY_TESTS));
 
   const collection = activeTab ? findCollection(workspace, activeTab.collectionId) : null;
+  const activeFolderLocated = activeTab?.kind === 'folder' && collection && activeTab.nodeId ? locate(collection.items, activeTab.nodeId) : null;
+  const activeFolder = activeFolderLocated?.node.type === 'folder' ? activeFolderLocated.node : null;
   const scope = useMemo(() => buildScope(workspace, collection), [workspace, collection]);
 
   // First-run/no-tabs safety net: the session store always seeds one, but a
@@ -180,12 +146,9 @@ export default function App() {
   // The collection tree dispatches this rather than importing App state directly.
   useEffect(() => {
     const onExport = (e: Event) => setExportCollectionId((e as CustomEvent<string>).detail);
-    const onScripts = (e: Event) => setScriptsCollectionId((e as CustomEvent<string>).detail);
     window.addEventListener('kapi:export-collection', onExport);
-    window.addEventListener('kapi:collection-scripts', onScripts);
     return () => {
       window.removeEventListener('kapi:export-collection', onExport);
-      window.removeEventListener('kapi:collection-scripts', onScripts);
     };
   }, []);
 
@@ -202,6 +165,15 @@ export default function App() {
         detail: `${hit.method} ${hit.path}\nStatus: ${hit.status}\nMatched a route: ${hit.matched ? 'yes' : 'no'}`,
       });
     });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  // Captured while the Discovery panel isn't even the visible sidebar tab —
+  // the capture window keeps reporting regardless, so this has to be global.
+  useEffect(() => {
+    const unlisten = onDiscoveryCapture((entries) => useDiscovery.getState().addBatch(entries));
     return () => {
       unlisten.then((fn) => fn());
     };
@@ -274,7 +246,7 @@ export default function App() {
     begin(activeTab.id, controller);
     useTestResults.getState().clear(activeTab.id);
     let sentForLog: SentRequest | null = null;
-    const result = await send(request, sendScope, {
+    const result = await sendWithCookies(request, sendScope, {
       signal: controller.signal,
       onPrepared: (sent) => {
         sentForLog = sent;
@@ -339,25 +311,28 @@ export default function App() {
     });
   };
 
+  // Autosave: a tab backed by a saved request writes straight back into its
+  // collection on every change — no explicit Save step for anything that
+  // already has a home. A brand-new tab (no nodeId yet) still needs Save As
+  // to pick where it lives; onSave below covers that case.
   const onChangeRequest = (request: RequestDef) => {
     if (!activeTab) return;
-    updateTabRequest(activeTab.id, request);
+    writeTabRequest(activeTab.id, request);
   };
 
   const onChangeWs = (ws: WebSocketRequestDef) => {
     if (!activeTab) return;
-    updateTabWs(activeTab.id, ws);
+    writeTabWs(activeTab.id, ws);
   };
 
   const onSave = () => {
     if (!activeTab) return;
     if (activeTab.nodeId && activeTab.collectionId) {
       if (activeTab.kind === 'ws' && activeTab.ws) {
-        updateWebSocketRequest(activeTab.collectionId, activeTab.nodeId, activeTab.ws);
+        writeTabWs(activeTab.id, activeTab.ws);
       } else {
-        updateRequest(activeTab.collectionId, activeTab.nodeId, activeTab.request);
+        writeTabRequest(activeTab.id, activeTab.request);
       }
-      patchTab(activeTab.id, { dirty: false });
       toast.success('Saved');
     } else {
       setSaveAsTabId(activeTab.id);
@@ -366,15 +341,13 @@ export default function App() {
 
   const onImportCurl = (request: RequestDef) => {
     if (!activeTab) return;
-    updateTabRequest(activeTab.id, request);
+    writeTabRequest(activeTab.id, request);
     patchTab(activeTab.id, { name: 'Imported request' });
   };
 
   const persistExamples = (examples: SavedExample[]) => {
     if (!activeTab) return;
-    const request = { ...activeTab.request, examples };
-    updateTabRequest(activeTab.id, request);
-    if (activeTab.nodeId && activeTab.collectionId) updateRequest(activeTab.collectionId, activeTab.nodeId, request);
+    writeTabRequest(activeTab.id, { ...activeTab.request, examples });
   };
 
   const onSaveExample = () => {
@@ -386,14 +359,12 @@ export default function App() {
     if (!activeTab || activeTab.kind !== 'http' || !run.result?.ok) return;
     const example = responseToExample(run.result.response, name);
     const request = { ...activeTab.request, examples: [...(activeTab.request.examples ?? []), example] };
-    updateTabRequest(activeTab.id, request);
+    writeTabRequest(activeTab.id, request);
     if (activeTab.nodeId && activeTab.collectionId) {
-      updateRequest(activeTab.collectionId, activeTab.nodeId, request);
       toast.success('Saved example', `${name} · under "${activeTab.name}"`);
     } else {
       // Nothing to attach it to yet — the example lives in the tab until the
       // request itself is saved, so say so rather than implying it persisted.
-      patchTab(activeTab.id, { dirty: true });
       toast.info('Saved example', 'Save this request to a collection to keep it.');
     }
   };
@@ -409,7 +380,7 @@ export default function App() {
     if (!activeTab) return;
     const existing = activeTab.request.testScript?.trim();
     const testScript = existing ? `${existing}\n\n${script}\n` : `${script}\n`;
-    updateTabRequest(activeTab.id, { ...activeTab.request, testScript });
+    writeTabRequest(activeTab.id, { ...activeTab.request, testScript });
     setSession('requestTab', 'scripts');
   };
 
@@ -518,6 +489,10 @@ export default function App() {
     { id: 'close-other-tabs', label: 'Close other tabs', icon: <X size={13} />, run: () => runAction('close-other-tabs') },
     { id: 'close-all-tabs', label: 'Close all tabs', icon: <X size={13} />, run: () => runAction('close-all-tabs') },
     ...(activeTab?.kind === 'http' ? [{ id: 'generate-code', label: 'Generate code for this request…', icon: <FileDown size={13} />, run: () => setCodeOpen(true) }] : []),
+    ...(collection
+      ? [{ id: 'run-collection', label: `Run collection "${collection.name}"…`, icon: <FileDown size={13} />, run: () => useRunner.getState().openFor(collection.id, null) }]
+      : []),
+    { id: 'inspect-token', label: 'Inspect a token…', icon: <FileDown size={13} />, run: () => useTokenInspector.getState().openWith() },
   ];
 
   return (
@@ -538,6 +513,10 @@ export default function App() {
           {activeTab && activeTab.kind === 'ws' && activeTab.ws && (
             <WsPanel tabId={activeTab.id} request={activeTab.ws} onChange={onChangeWs} collection={collection} />
           )}
+          {activeTab && activeTab.kind === 'collection' && collection && (
+            <CollectionDetailPage collection={collection} onExport={() => setExportCollectionId(collection.id)} />
+          )}
+          {activeTab && activeTab.kind === 'folder' && collection && activeFolder && <FolderDetailPage collection={collection} folder={activeFolder} />}
           {activeTab && activeTab.kind === 'http' && (
             <>
               <EnvironmentPicker collection={collection} />
@@ -573,6 +552,7 @@ export default function App() {
                     testResults={testResults}
                     hasTestScript={!!activeTab.request.testScript?.trim()}
                     onGeneratedTests={onGeneratedTests}
+                    onExtractVariable={(suggestedName, value) => setExtractVariable({ suggestedName, value })}
                   />
                 }
               />
@@ -586,7 +566,8 @@ export default function App() {
       <ToastHost />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} extraCommands={extraCommands} />
       <ImportModal open={importOpen} onClose={() => setImportOpen(false)} />
-      <CollectionScriptsModal collectionId={scriptsCollectionId} onClose={() => setScriptsCollectionId(null)} />
+      <TokenInspectorModal />
+      <RunnerPanel />
       <PromptModal
         open={exampleNameOpen}
         title="Save response as example"
@@ -594,6 +575,18 @@ export default function App() {
         defaultValue={run.result?.ok ? `${run.result.response.status} response` : 'Example'}
         onSubmit={saveExampleAs}
         onClose={() => setExampleNameOpen(false)}
+      />
+      <PromptModal
+        open={extractVariable !== null}
+        title="Save as variable"
+        label="Variable name"
+        defaultValue={extractVariable?.suggestedName ?? ''}
+        confirmLabel="Save"
+        onSubmit={(name) => {
+          upsertWorkspaceVariable(name, extractVariable!.value);
+          toast.success('Saved variable', `{{${name}}}`);
+        }}
+        onClose={() => setExtractVariable(null)}
       />
       <SaveAsModal open={saveAsTabId !== null} onClose={() => setSaveAsTabId(null)} tabId={saveAsTabId} />
       <ExportModal

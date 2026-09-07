@@ -1,7 +1,22 @@
+import { ScanSearch } from 'lucide-react';
 import type { AuthConfig, AuthType } from '@/types';
 import { AUTH_LABELS } from '@/lib/auth';
 import { Field, Select, Checkbox, Badge } from '@/components/ui/primitives';
 import { CodeEditor } from '@/components/ui/Editor';
+import { useTokenInspector } from '@/store/tokenInspector';
+
+function InspectLink({ value }: { value: string }) {
+  if (!value.trim()) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => useTokenInspector.getState().openWith(value)}
+      className="mt-1 flex items-center gap-1 text-[11px] text-faint hover:text-dim"
+    >
+      <ScanSearch size={11} /> Inspect
+    </button>
+  );
+}
 
 const TYPES: AuthType[] = ['inherit', 'none', 'bearer', 'basic', 'apikey', 'jwt', 'oauth2', 'custom'];
 
@@ -60,6 +75,7 @@ export function AuthTab({
               placeholder="{{token}}"
               className="h-8 w-full rounded-md border border-line bg-surface px-2.5 font-mono text-[12.5px] focus:border-accent focus:outline-none"
             />
+            <InspectLink value={auth.bearer?.token ?? ''} />
           </Field>
         )}
 
@@ -154,6 +170,7 @@ export function AuthTab({
                 onChange={(e) => set('oauth2', { ...auth.oauth2!, accessToken: e.target.value })}
                 className="h-8 max-w-lg rounded-md border border-line bg-surface px-2.5 font-mono text-[12.5px] focus:border-accent focus:outline-none"
               />
+              <InspectLink value={auth.oauth2.accessToken} />
             </Field>
             <div className="grid max-w-lg grid-cols-2 gap-3">
               <Field label="Grant type">

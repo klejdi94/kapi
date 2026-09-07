@@ -1,17 +1,18 @@
 import { useState } from 'react';
-import { BookOpen, Trash2, WrapText } from 'lucide-react';
+import { BookOpen, GitCompareArrows, Send, Trash2, WrapText, X } from 'lucide-react';
 import type { ResponseView, SavedExample } from '@/types';
 import { Segmented, IconButton, EmptyState, Spinner, Badge } from '@/components/ui/primitives';
 import { ResponseMeta } from './ResponseMeta';
 import { PrettyView, RawView, PreviewView, HeadersView, CookiesView, TimingsView } from './Views';
 import { JsonTree } from './JsonTree';
+import { ResponseDiffView } from './ResponseDiffView';
 import { ErrorView } from './ErrorView';
 import { TestsView } from './TestsView';
 import type { TestResult } from '@/lib/scripting';
 import { useSession } from '@/store/session';
 import type { RunResult } from '@/types';
 import { extensionFor, mimeOf, formatRelativeTime, statusTone } from '@/lib/format';
-import { Send } from 'lucide-react';
+import { exampleToResponse } from '@/lib/examples';
 import { saveFile } from '@/lib/saveFile';
 import { toast } from '@/lib/toast';
 
@@ -25,6 +26,7 @@ export function ResponseViewer({
   testResults,
   hasTestScript,
   onGeneratedTests,
+  onExtractVariable,
 }: {
   run: RunResult | null;
   loading: boolean;
@@ -35,11 +37,13 @@ export function ResponseViewer({
   testResults?: TestResult[];
   hasTestScript?: boolean;
   onGeneratedTests?: (script: string) => void;
+  onExtractVariable?: (suggestedName: string, value: string) => void;
 }) {
   const view = useSession((s) => s.responseView);
   const setView = useSession((s) => s.set);
   const wrap = useSession((s) => s.wrapLines);
   const [examplesOpen, setExamplesOpen] = useState(false);
+  const [diffExample, setDiffExample] = useState<SavedExample | null>(null);
 
   if (loading && !run) {
     return (
@@ -150,6 +154,15 @@ export function ResponseViewer({
                         <span className="min-w-0 flex-1 truncate">{ex.name}</span>
                         <span className="shrink-0 text-[10px] text-faint">{formatRelativeTime(ex.savedAt)}</span>
                       </button>
+                      <IconButton
+                        label="Diff against the current response"
+                        onClick={() => {
+                          setDiffExample(ex);
+                          setExamplesOpen(false);
+                        }}
+                      >
+                        <GitCompareArrows size={12} />
+                      </IconButton>
                       {onDeleteExample && (
                         <IconButton label="Delete example" tone="danger" onClick={() => onDeleteExample(ex.id)}>
                           <Trash2 size={12} />
@@ -169,28 +182,42 @@ export function ResponseViewer({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-hidden">
-        {view === 'pretty' && <PrettyView response={response} wrap={wrap} />}
-        {view === 'raw' && <RawView response={response} wrap={wrap} />}
-        {view === 'preview' && <PreviewView response={response} />}
-        {view === 'headers' && <HeadersView response={response} />}
-        {view === 'cookies' && <CookiesView response={response} />}
-        {view === 'timings' && <TimingsView response={response} />}
-        {view === 'tests' && (
-          <TestsView
-            results={testResults ?? []}
-            response={response}
-            hasScript={!!hasTestScript}
-            onGenerated={(script) => onGeneratedTests?.(script)}
-          />
-        )}
-        {view === 'tree' &&
-          (jsonParseError ? (
-            <EmptyState title="This response isn't valid JSON" detail={jsonParseError} />
-          ) : (
-            <JsonTree value={jsonValue} />
-          ))}
-      </div>
+      {diffExample ? (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex items-center justify-between border-b border-line px-3 py-1.5 text-[12px] text-dim">
+            <span>
+              Comparing current response to <strong className="text-fg">{diffExample.name}</strong>
+            </span>
+            <IconButton label="Close diff" onClick={() => setDiffExample(null)}>
+              <X size={13} />
+            </IconButton>
+          </div>
+          <ResponseDiffView before={exampleToResponse(diffExample, response.sent.method, response.sent.url)} after={response} />
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-hidden">
+          {view === 'pretty' && <PrettyView response={response} wrap={wrap} />}
+          {view === 'raw' && <RawView response={response} wrap={wrap} />}
+          {view === 'preview' && <PreviewView response={response} />}
+          {view === 'headers' && <HeadersView response={response} />}
+          {view === 'cookies' && <CookiesView response={response} />}
+          {view === 'timings' && <TimingsView response={response} />}
+          {view === 'tests' && (
+            <TestsView
+              results={testResults ?? []}
+              response={response}
+              hasScript={!!hasTestScript}
+              onGenerated={(script) => onGeneratedTests?.(script)}
+            />
+          )}
+          {view === 'tree' &&
+            (jsonParseError ? (
+              <EmptyState title="This response isn't valid JSON" detail={jsonParseError} />
+            ) : (
+              <JsonTree value={jsonValue} onExtractVariable={onExtractVariable} />
+            ))}
+        </div>
+      )}
     </div>
   );
 }

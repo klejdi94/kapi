@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Tag } from 'lucide-react';
 import clsx from 'clsx';
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 
 /** Collapsible JSON viewer with a `$.path` filter box — no library, just recursion. */
-export function JsonTree({ value }: { value: unknown }) {
+export function JsonTree({ value, onExtractVariable }: { value: unknown; onExtractVariable?: (suggestedName: string, value: string) => void }) {
   const [filter, setFilter] = useState('');
   const parsed = useMemo(() => normalizeFilter(filter), [filter]);
 
@@ -20,7 +20,7 @@ export function JsonTree({ value }: { value: unknown }) {
         />
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-3 font-mono text-[12px] leading-relaxed">
-        <Node value={value as Json} name={null} depth={0} defaultOpen path={parsed} />
+        <Node value={value as Json} name={null} depth={0} defaultOpen path={parsed} onExtractVariable={onExtractVariable} />
       </div>
     </div>
   );
@@ -50,6 +50,7 @@ function Node({
   defaultOpen,
   path,
   ancestry = [],
+  onExtractVariable,
 }: {
   value: Json;
   name: string | number | null;
@@ -57,6 +58,7 @@ function Node({
   defaultOpen?: boolean;
   path: (string | number)[] | null;
   ancestry?: (string | number)[];
+  onExtractVariable?: (suggestedName: string, value: string) => void;
 }) {
   const match = matchesPath(path, ancestry);
   const [open, setOpen] = useState(!!defaultOpen || match !== 'none');
@@ -72,7 +74,7 @@ function Node({
 
   if (!isContainer) {
     return (
-      <div className="flex gap-1 whitespace-nowrap" style={{ paddingLeft: depth * 14 }}>
+      <div className="group flex items-center gap-1 whitespace-nowrap" style={{ paddingLeft: depth * 14 }}>
         {name !== null && (
           <>
             {keyLabel}
@@ -80,6 +82,15 @@ function Node({
           </>
         )}
         <ScalarValue value={value} />
+        {onExtractVariable && value !== null && (
+          <button
+            onClick={() => onExtractVariable(typeof name === 'string' ? name : 'value', String(value))}
+            title="Save as variable"
+            className="opacity-0 text-faint hover:text-accent group-hover:opacity-100"
+          >
+            <Tag size={11} />
+          </button>
+        )}
       </div>
     );
   }
@@ -106,7 +117,7 @@ function Node({
       {open && (
         <>
           {entries.map(([k, v]) => (
-            <Node key={k} value={v} name={k} depth={depth + 1} path={path} ancestry={[...ancestry, k]} />
+            <Node key={k} value={v} name={k} depth={depth + 1} path={path} ancestry={[...ancestry, k]} onExtractVariable={onExtractVariable} />
           ))}
           <div className="text-faint" style={{ paddingLeft: depth * 14 }}>
             {bracket[1]}

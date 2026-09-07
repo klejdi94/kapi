@@ -48,16 +48,31 @@ raw bytes, a real preview for HTML, images, audio, video and PDFs, parsed cookie
 a timing breakdown. Save any response as a named example and replay it later.
 
 **Organization that scales.** Workspaces → collections → nested folders → requests, with drag-and-drop,
-pinned favourites, inherited auth/headers/variables, and `{{variables}}` resolved across environments,
-collection scope and globals.
+multi-select, pinned favourites and tabs, inherited auth/headers/variables, and `{{variables}}` resolved
+across environments, collection scope and globals. Every collection gets its own page — default auth and
+headers, variables (with a secret toggle that keeps them out of the AI's context), scripts and generated
+docs, all in one place.
 
 **Scripting, the Postman way.** Pre-request and test scripts with a `pm` API you already know — per
 request *and* per collection, running in that order. Assertions show up in a Tests panel; `console.log`
 and script errors land in the Console.
 
-**Tests written for you.** Point Claude at a real response and get `pm.test(...)` assertions back,
-generated from the actual body you just received. It shells out to your own `claude` CLI — no API key,
-no extra subscription, nothing sent to us.
+**An AI that sees what you see.** Claude answers with the request and response you have open already
+attached — "why did this fail?", "write a pre-request script for this" — and writes `pm.test(...)`
+assertions from a real response. It shells out to your own `claude` CLI — no API key, no extra
+subscription, nothing sent to us.
+
+**Run a whole collection.** N iterations, an optional CSV data file, the exact pre-request → send → test
+pipeline a manual send uses — so a login request's token really does carry into the ones after it. Live
+pass/fail as it runs, results exportable as JSON.
+
+**Discover an API by browsing it.** Point kapi at a site and it opens it in its own window — your real
+session, your real cookies — and quietly watches the calls it makes while you click around. Turn what it
+finds into a real collection, secrets swapped for `{{variables}}` instead of saved as plaintext. Or skip
+the clicking: kapi checks the usual `/openapi.json` / `/swagger.json` paths first.
+
+**Docs that write themselves.** Markdown notes per request, rolled up into one document per collection —
+export it as Markdown or OpenAPI 3.0, or hand the whole collection to any tool that reads either.
 
 **A local mock server.** Turn any collection into a running HTTP server on localhost with per-route
 status, headers, body and latency, then watch the hits stream into the console.
@@ -68,8 +83,8 @@ Secrets stay out of the snapshot.
 
 **Import and export everything.** Postman v2.1 collections and environments, OpenAPI 3.x / Swagger 2
 (JSON or YAML, auto-organized into folders by tag), HAR, Insomnia, and plain cURL — paste a cURL
-command straight into the URL bar and it expands into a full request. Export back out to any of them,
-or generate ready-to-run code in a dozen languages.
+command straight into the URL bar and it expands into a full request. Export to Postman, OpenAPI 3.0,
+Markdown docs, HAR, or generate ready-to-run code in a dozen languages.
 
 **A console that shows the whole truth.** Every request, response, WebSocket frame, mock hit and
 script log, with full headers and bodies.

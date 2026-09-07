@@ -6,7 +6,10 @@ import { Button, Select } from '@/components/ui/primitives';
 import { beautify, languageFor, minifyJson, prettyJson } from '@/lib/format';
 import { useRef, useState } from 'react';
 import { getFile, putFile } from '@/lib/files';
-import { FileUp, Sparkles } from 'lucide-react';
+import { BookOpen, FileUp, Sparkles } from 'lucide-react';
+import clsx from 'clsx';
+import type { GraphQLSchemaSummary } from '@/lib/graphqlIntrospection';
+import { GraphQLSchemaBrowser } from './GraphQLSchemaBrowser';
 
 const MODES: BodyMode[] = ['none', 'json', 'text', 'javascript', 'html', 'xml', 'graphql', 'form-data', 'urlencoded', 'binary'];
 
@@ -15,14 +18,23 @@ export function BodyTab({
   onChange,
   resolve,
   disabledReason,
+  graphqlSchema,
+  graphqlLoading,
+  graphqlError,
+  onFetchGraphqlSchema,
 }: {
   body: BodyConfig;
   onChange: (body: BodyConfig) => void;
   resolve: (text: string) => string;
   disabledReason: string | null;
+  graphqlSchema?: GraphQLSchemaSummary | null;
+  graphqlLoading?: boolean;
+  graphqlError?: string | null;
+  onFetchGraphqlSchema?: () => void;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [jsonError, setJsonError] = useState<string | null>(null);
+  const [schemaOpen, setSchemaOpen] = useState(false);
 
   const setMode = (mode: BodyMode) => onChange({ ...body, mode });
 
@@ -56,6 +68,11 @@ export function BodyTab({
             </Button>
           </div>
         )}
+        {body.mode === 'graphql' && (
+          <Button size="sm" variant={schemaOpen ? 'primary' : 'default'} onClick={() => setSchemaOpen((o) => !o)}>
+            <BookOpen size={12} /> Schema
+          </Button>
+        )}
         {(body.mode === 'xml' || body.mode === 'html') && (
           <Button size="sm" onClick={() => setText(body.mode as TextMode, beautify(body.text[body.mode as TextMode] ?? '', body.mode as 'xml' | 'html'))}>
             <Sparkles size={12} /> Beautify
@@ -82,26 +99,42 @@ export function BodyTab({
         )}
 
         {body.mode === 'graphql' && (
-          <div className="grid h-full grid-rows-[1fr_140px] divide-y divide-line">
-            <div className="min-h-0">
-              <CodeEditor
-                value={body.graphql.query}
-                onChange={(query) => onChange({ ...body, graphql: { ...body.graphql, query } })}
-                language="javascript"
-                placeholder={'query {\n  \n}'}
+          <div className={clsx('grid h-full divide-x divide-line', schemaOpen ? 'grid-cols-[220px_1fr]' : 'grid-cols-1')}>
+            {schemaOpen && (
+              <GraphQLSchemaBrowser
+                schema={graphqlSchema ?? null}
+                loading={!!graphqlLoading}
+                error={graphqlError ?? null}
+                onFetch={() => onFetchGraphqlSchema?.()}
+                onInsert={(skeleton) =>
+                  onChange({
+                    ...body,
+                    graphql: { ...body.graphql, query: body.graphql.query.trim() ? `${body.graphql.query}\n\n${skeleton}` : skeleton },
+                  })
+                }
               />
-            </div>
-            <div className="flex min-h-0 flex-col">
-              <div className="border-b border-line bg-surface-2 px-3 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-faint">
-                Variables
-              </div>
-              <div className="min-h-0 flex-1">
+            )}
+            <div className="grid min-w-0 grid-rows-[1fr_140px] divide-y divide-line">
+              <div className="min-h-0">
                 <CodeEditor
-                  value={body.graphql.variables}
-                  onChange={(variables) => onChange({ ...body, graphql: { ...body.graphql, variables } })}
-                  language="json"
-                  placeholder="{}"
+                  value={body.graphql.query}
+                  onChange={(query) => onChange({ ...body, graphql: { ...body.graphql, query } })}
+                  language="javascript"
+                  placeholder={'query {\n  \n}'}
                 />
+              </div>
+              <div className="flex min-h-0 flex-col">
+                <div className="border-b border-line bg-surface-2 px-3 py-1 text-[10.5px] font-semibold uppercase tracking-wider text-faint">
+                  Variables
+                </div>
+                <div className="min-h-0 flex-1">
+                  <CodeEditor
+                    value={body.graphql.variables}
+                    onChange={(variables) => onChange({ ...body, graphql: { ...body.graphql, variables } })}
+                    language="json"
+                    placeholder="{}"
+                  />
+                </div>
               </div>
             </div>
           </div>

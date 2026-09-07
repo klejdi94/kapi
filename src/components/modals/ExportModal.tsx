@@ -6,10 +6,12 @@ import { useActiveWorkspace } from '@/store/workspaces';
 import { useHistory } from '@/store/history';
 import { exportPostmanCollection, exportPostmanEnvironment } from '@/lib/exporters/postman';
 import { exportHar } from '@/lib/exporters/har';
+import { exportOpenApi } from '@/lib/exporters/openapi';
+import { renderCollectionDocs } from '@/lib/docs';
 import { toast } from '@/lib/toast';
 import { saveFile } from '@/lib/saveFile';
 
-type Format = 'postman' | 'har' | 'kapi';
+type Format = 'postman' | 'openapi' | 'markdown' | 'har' | 'kapi';
 
 const download = (filename: string, content: unknown) =>
   saveFile(filename, JSON.stringify(content, null, 2), 'application/json');
@@ -32,9 +34,13 @@ export function ExportModal({ open, onClose, collectionId }: { open: boolean; on
       const saved =
         format === 'postman'
           ? await download(`${collection.name}.postman_collection.json`, exportPostmanCollection(collection))
-          : format === 'kapi'
-            ? await download(`${collection.name}.kapi.json`, collection)
-            : await download('history.har', exportHar(entries.slice(0, 500).map((request) => ({ request }))));
+          : format === 'openapi'
+            ? await download(`${collection.name}.openapi.json`, exportOpenApi(collection))
+            : format === 'markdown'
+              ? await saveFile(`${collection.name}.docs.md`, renderCollectionDocs(collection), 'text/markdown')
+              : format === 'kapi'
+                ? await download(`${collection.name}.kapi.json`, collection)
+                : await download('history.har', exportHar(entries.slice(0, 500).map((request) => ({ request }))));
       if (saved === null) return;
       toast.success('Exported', saved || collection.name);
     } else {
@@ -64,6 +70,8 @@ export function ExportModal({ open, onClose, collectionId }: { open: boolean; on
             onChange={setFormat}
             options={[
               { value: 'postman', label: 'Postman v2.1' },
+              { value: 'openapi', label: 'OpenAPI 3.0' },
+              { value: 'markdown', label: 'Docs (Markdown)' },
               { value: 'har', label: 'HAR (from history)' },
               { value: 'kapi', label: 'kapi native' },
             ]}

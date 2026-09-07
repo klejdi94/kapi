@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { Bot, Check, Copy, CornerDownLeft, Plus, Sparkles, Terminal, Trash2 } from 'lucide-react';
-import { Button, EmptyState } from '@/components/ui/primitives';
+import { AlertTriangle, Bot, Braces, Check, Copy, CornerDownLeft, FileText, Plus, Sparkles, Terminal, Trash2 } from 'lucide-react';
+import { Button, Checkbox, EmptyState } from '@/components/ui/primitives';
 import { Thinking } from '@/components/ui/Thinking';
 import { useAiChat } from '@/store/aiChat';
 import { askClaude, claudeAvailable, isClaudeCliInstalled } from '@/lib/claudeCli';
-import { extractAiRequest, stripAiRequestBlock } from '@/lib/aiRequestParse';
-import { useSession } from '@/store/session';
-import { useWorkspaces } from '@/store/workspaces';
+import { extractAiRequest, extractScriptBlock, stripAiRequestBlock } from '@/lib/aiRequestParse';
+import { describeAiContext, type AiContextInput } from '@/lib/aiContext';
+import { useSession, useActiveTab } from '@/store/session';
+import { useActiveWorkspace, useWorkspaces, findCollection } from '@/store/workspaces';
+import { useTabRun } from '@/store/responses';
+import { resolveInheritedForNode } from '@/lib/inherit';
+import { writeTabRequest } from '@/lib/tabWrite';
 import { newRequestNode } from '@/lib/factory';
 import { methodVar } from '@/lib/methodColor';
 import { toast } from '@/lib/toast';
@@ -26,11 +30,16 @@ export function AiPanel() {
   const setLoading = useAiChat((s) => s.setLoading);
   const clear = useAiChat((s) => s.clear);
   const openTab = useSession((s) => s.openTab);
+  const setSession = useSession((s) => s.set);
+  const activeTab = useActiveTab();
+  const workspace = useActiveWorkspace();
   const activeCollectionId = useWorkspaces((s) => s.workspaces.find((w) => w.id === s.activeWorkspaceId)?.collections[0]?.id ?? null);
   const addNode = useWorkspaces((s) => s.addNode);
+  const run = useTabRun(activeTab?.id ?? '');
 
   const [draft, setDraft] = useState('');
   const [installed, setInstalled] = useState<boolean | null>(null);
+  const [attachContext, setAttachContext] = useState(true);
   const logRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -61,6 +70,25 @@ export function AiPanel() {
     );
   }
 
+  const canAttach = !!activeTab && activeTab.kind === 'http';
+  const collection = activeTab ? findCollection(workspace, activeTab.collectionId) : null;
+
+  const buildContext = (): string | undefined => {
+    if (!attachContext || !activeTab || activeTab.kind !== 'http') return undefined;
+    const input: AiContextInput = { request: resolveInheritedForNode(activeTab.request, collection, activeTab.nodeId) };
+    if (run.result?.ok) {
+      const r = run.result.response;
+      input.response = { status: r.status, statusText: r.statusText, headers: r.headers, text: r.text, binary: r.binary, timeMs: r.timings.total, sent: r.sent };
+    } else if (run.result && !run.result.ok) {
+      input.error = { error: run.result.error };
+    }
+    const environment = workspace.environments.find((e) => e.id === workspace.activeEnvironmentId);
+    const secrets = [...workspace.globals, ...(collection?.variables ?? []), ...(environment?.variables ?? [])]
+      .filter((row) => row.secret && row.value)
+      .map((row) => row.value);
+    return describeAiContext(input, secrets);
+  };
+
   const ask = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || loading) return;
@@ -69,7 +97,7 @@ export function AiPanel() {
     addMessage({ role: 'user', text: trimmed });
     setLoading(true);
     try {
-      const reply = await askClaude(history);
+      const reply = await askClaude(history, buildContext());
       addMessage({ role: 'assistant', text: reply });
     } catch (err) {
       toast.error('claude CLI failed', (err as Error).message);
@@ -89,6 +117,36 @@ export function AiPanel() {
       toast.success('Opened in a new tab');
     }
   };
+
+  const insertScript = (script: string, kind: 'pre' | 'test') => {
+    if (!activeTab || activeTab.kind !== 'http') return;
+    const field = kind === 'pre' ? 'preRequestScript' : 'testScript';
+    const existing = activeTab.request[field]?.trim();
+    const next = existing ? `${existing}\n\n${script}\n` : `${script}\n`;
+    writeTabRequest(activeTab.id, { ...activeTab.request, [field]: next });
+    setSession('requestTab', 'scripts');
+    toast.success(kind === 'pre' ? 'Added to pre-request script' : 'Added to test script');
+  };
+
+  interface QuickAction {
+    label: string;
+    icon: React.ReactNode;
+    onSelect: () => void;
+  }
+  const quickActions: QuickAction[] = [];
+  if (run.result && !run.result.ok) {
+    quickActions.push({ label: 'Explain this error', icon: <AlertTriangle size={11} />, onSelect: () => ask('Why did this request fail? Suggest what to check or change.') });
+  }
+  if (run.result?.ok) {
+    quickActions.push({ label: 'Explain this response', icon: <FileText size={11} />, onSelect: () => ask('Explain this response — what it means and anything worth noting about it.') });
+  }
+  if (canAttach) {
+    quickActions.push({
+      label: 'Write a pre-request script',
+      icon: <Braces size={11} />,
+      onSelect: () => ask('Write a pre-request script for this request (e.g. to sign it or derive a variable it needs).'),
+    });
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -136,7 +194,7 @@ export function AiPanel() {
         ) : (
           <div className="flex flex-col gap-3">
             {messages.map((m, i) => (
-              <ChatBubble key={i} turn={m} onUseRequest={useRequest} />
+              <ChatBubble key={i} turn={m} onUseRequest={useRequest} onInsertScript={insertScript} />
             ))}
             {loading && (
               <div className="animate-rise flex items-center gap-2">
@@ -153,6 +211,32 @@ export function AiPanel() {
       </div>
 
       <div className="border-t border-line p-3">
+        {(canAttach || quickActions.length > 0) && (
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+            {canAttach && (
+              <Checkbox
+                checked={attachContext}
+                onChange={setAttachContext}
+                label={`Attach ${activeTab!.name}${run.result ? ' + its response' : ''}`}
+              />
+            )}
+          </div>
+        )}
+        {quickActions.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {quickActions.map((action) => (
+              <button
+                key={action.label}
+                onClick={action.onSelect}
+                disabled={loading}
+                className="flex items-center gap-1 rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] text-dim transition-colors duration-100 hover:border-accent hover:text-fg disabled:opacity-40"
+              >
+                {action.icon}
+                {action.label}
+              </button>
+            ))}
+          </div>
+        )}
         <div
           className={clsx(
             'flex items-end gap-2 rounded-md border bg-surface p-1.5 transition-colors duration-150 focus-within:border-accent',
@@ -179,9 +263,18 @@ export function AiPanel() {
   );
 }
 
-function ChatBubble({ turn, onUseRequest }: { turn: { role: 'user' | 'assistant'; text: string }; onUseRequest: (r: RequestDef) => void }) {
+function ChatBubble({
+  turn,
+  onUseRequest,
+  onInsertScript,
+}: {
+  turn: { role: 'user' | 'assistant'; text: string };
+  onUseRequest: (r: RequestDef) => void;
+  onInsertScript: (script: string, kind: 'pre' | 'test') => void;
+}) {
   const isUser = turn.role === 'user';
   const request = !isUser ? extractAiRequest(turn.text) : null;
+  const script = !isUser && !request ? extractScriptBlock(turn.text) : null;
   const displayText = isUser ? turn.text : stripAiRequestBlock(turn.text);
   const [copied, setCopied] = useState(false);
 
@@ -220,6 +313,19 @@ function ChatBubble({ turn, onUseRequest }: { turn: { role: 'user' | 'assistant'
           <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-dim">{request.url}</span>
           <Button size="sm" variant="primary" onClick={() => onUseRequest(request)}>
             Use
+          </Button>
+        </div>
+      )}
+
+      {script && (
+        <div className="animate-rise flex w-full items-center gap-2 rounded-md border border-line bg-surface-2 px-2.5 py-1.5 transition-colors duration-150 hover:border-accent">
+          <Braces size={12} className="shrink-0 text-faint" />
+          <span className="min-w-0 flex-1 truncate text-[11.5px] text-dim">Script for the open request</span>
+          <Button size="sm" onClick={() => onInsertScript(script, 'pre')}>
+            Add to pre-request
+          </Button>
+          <Button size="sm" variant="primary" onClick={() => onInsertScript(script, 'test')}>
+            Add to tests
           </Button>
         </div>
       )}

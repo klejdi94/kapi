@@ -45,3 +45,9 @@ export function extractAiRequest(text: string): RequestDef | null {
 export function stripAiRequestBlock(text: string): string {
   return text.replace(/```kapi-request\s*\n[\s\S]*?```/, '').trim();
 }
+
+/** Pulls a plain ```javascript / ```js fenced block out of a reply — how Claude hands back a pm script. */
+export function extractScriptBlock(text: string): string | null {
+  const match = /```(?:javascript|js)\s*\n([\s\S]*?)```/.exec(text);
+  return match ? match[1].trim() : null;
+}

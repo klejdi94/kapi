@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { Collection, Environment, KV, MockServerConfig, RequestDef, TreeNode, WebSocketRequestDef, Workspace } from '@/types';
+import type { Collection, Environment, KV, MockServerConfig, RequestDef, StoredCookie, TreeNode, WebSocketRequestDef, Workspace } from '@/types';
 import { newCollection, newEnvironment, newWorkspace, seedWorkspace, uid, kv } from '@/lib/factory';
-import { insertNode, locate, mapNode, reidentify, removeNode, setAllExpanded } from '@/lib/tree';
+import { deepClone, insertNode, locate, mapNode, reidentify, removeNode, setAllExpanded } from '@/lib/tree';
 import { fileJSONStorage } from '@/lib/fileStorage';
 
 interface WorkspaceState {
@@ -20,6 +20,7 @@ interface WorkspaceState {
   addCollection: (name?: string) => string;
   importCollection: (collection: Collection) => string;
   updateCollection: (id: string, patch: Partial<Collection>) => void;
+  duplicateCollection: (id: string) => string | null;
   deleteCollection: (id: string) => Collection | null;
   restoreCollection: (collection: Collection, index: number) => void;
 
@@ -34,6 +35,11 @@ interface WorkspaceState {
     from: { collectionId: string; nodeId: string },
     to: { collectionId: string; parentFolderId: string | null; index: number },
   ) => void;
+
+  /* cookie jar */
+  addCookies: (cookies: StoredCookie[]) => void;
+  deleteCookie: (name: string, domain: string, path: string) => void;
+  clearCookies: () => void;
 
   /* environments */
   addEnvironment: (name?: string) => string;
@@ -117,6 +123,20 @@ export const useWorkspaces = create<WorkspaceState>()(
         },
 
         updateCollection: (id, patch) => patchCollection(id, (c) => ({ ...c, ...patch })),
+
+        duplicateCollection: (id) => {
+          const ws = get().workspaces.find((w) => w.id === get().activeWorkspaceId);
+          const source = ws?.collections.find((c) => c.id === id);
+          if (!source) return null;
+          const copy: Collection = {
+            ...deepClone(source),
+            id: uid(),
+            name: `${source.name} copy`,
+            items: source.items.map((node) => reidentify(node, uid)),
+          };
+          patchActive((w) => ({ ...w, collections: [...w.collections, copy] }));
+          return copy.id;
+        },
 
         deleteCollection: (id) => {
           const ws = get().workspaces.find((w) => w.id === get().activeWorkspaceId);
@@ -234,6 +254,24 @@ export const useWorkspaces = create<WorkspaceState>()(
 
         setGlobals: (variables) => patchActive((ws) => ({ ...ws, globals: variables })),
 
+        addCookies: (cookies) =>
+          patchActive((ws) => {
+            const now = Date.now();
+            const alive = (ws.cookies ?? []).filter((c) => c.expires === null || c.expires > now);
+            const merged = [...alive];
+            for (const cookie of cookies) {
+              const idx = merged.findIndex((c) => c.name === cookie.name && c.domain === cookie.domain && c.path === cookie.path);
+              if (idx === -1) merged.push(cookie);
+              else merged[idx] = cookie;
+            }
+            return { ...ws, cookies: merged };
+          }),
+
+        deleteCookie: (name, domain, path) =>
+          patchActive((ws) => ({ ...ws, cookies: (ws.cookies ?? []).filter((c) => !(c.name === name && c.domain === domain && c.path === path)) })),
+
+        clearCookies: () => patchActive((ws) => ({ ...ws, cookies: [] })),
+
         setGitRepoPath: (path) => patchActive((ws) => ({ ...ws, gitRepoPath: path })),
         replaceCollections: (collections) => patchActive((ws) => ({ ...ws, collections })),
 
@@ -284,6 +322,7 @@ useWorkspaces.persist.onFinishHydration(() => {
     gitRepoPath: ws.gitRepoPath ?? null,
     icon: ws.icon ?? '',
     mockServer: ws.mockServer ?? { port: 0, routes: [] },
+    cookies: ws.cookies ?? [],
   }));
   const activeWorkspaceId = useWorkspaces.getState().activeWorkspaceId;
   const stillValid = backfilled.some((ws) => ws.id === activeWorkspaceId);

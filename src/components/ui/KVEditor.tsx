@@ -1,5 +1,5 @@
-import { useRef } from 'react';
-import { Copy, FileUp, Trash2 } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Copy, Eye, EyeOff, FileUp, Lock, Trash2 } from 'lucide-react';
 import type { KV } from '@/types';
 import { kv, withTrailingBlank } from '@/lib/factory';
 import { variableSpans } from '@/lib/variables';
@@ -19,6 +19,7 @@ export function KVEditor({
   valuePlaceholder = 'Value',
   showDescription = false,
   allowFiles = false,
+  secretToggle = false,
   disabledHint,
   resolve,
 }: {
@@ -28,6 +29,8 @@ export function KVEditor({
   valuePlaceholder?: string;
   showDescription?: boolean;
   allowFiles?: boolean;
+  /** Variable grids only — lets a row be marked secret (masked value, excluded from AI context). */
+  secretToggle?: boolean;
   disabledHint?: (row: KV) => string | undefined;
   /** Optional live-preview resolver so {{vars}} show their value on hover. */
   resolve?: (text: string) => string;
@@ -62,6 +65,7 @@ export function KVEditor({
             cols={cols}
             showDescription={showDescription}
             allowFiles={allowFiles}
+            secretToggle={secretToggle}
             hint={hint}
             resolve={resolve}
             keyPlaceholder={keyPlaceholder}
@@ -71,6 +75,7 @@ export function KVEditor({
             onValue={(value) => update(row.id, { value })}
             onDescription={(description) => update(row.id, { description })}
             onKind={(kind) => update(row.id, { kind, value: kind === 'file' ? '' : row.value })}
+            onSecret={(secret) => update(row.id, { secret })}
             onFile={(file) => {
               putFile(row.id, file);
               update(row.id, { fileName: file.name });
@@ -89,6 +94,7 @@ function Row({
   cols,
   showDescription,
   allowFiles,
+  secretToggle,
   hint,
   resolve,
   keyPlaceholder,
@@ -98,6 +104,7 @@ function Row({
   onValue,
   onDescription,
   onKind,
+  onSecret,
   onFile,
   onDelete,
   onDuplicate,
@@ -106,6 +113,7 @@ function Row({
   cols: string;
   showDescription: boolean;
   allowFiles: boolean;
+  secretToggle: boolean;
   hint?: string;
   resolve?: (text: string) => string;
   onToggle: (enabled: boolean) => void;
@@ -113,6 +121,7 @@ function Row({
   onValue: (value: string) => void;
   onDescription: (description: string) => void;
   onKind: (kind: 'text' | 'file') => void;
+  onSecret: (secret: boolean) => void;
   onFile: (file: File) => void;
   onDelete?: () => void;
   onDuplicate: () => void;
@@ -120,8 +129,10 @@ function Row({
   valuePlaceholder: string;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
+  const [revealed, setRevealed] = useState(false);
   const hasVars = variableSpans(row.value).length > 0;
   const preview = hasVars && resolve ? resolve(row.value) : null;
+  const masked = secretToggle && row.secret && !revealed;
 
   return (
     <div className={`group grid ${cols} items-center gap-px bg-line`}>
@@ -167,15 +178,29 @@ function Row({
         </div>
       ) : (
         <>
-          <input
-            value={row.value}
-            onChange={(e) => onValue(e.target.value)}
-            placeholder={valuePlaceholder}
-            title={preview && preview !== row.value ? `→ ${preview}` : undefined}
-            list={row.key.trim().toLowerCase() === 'content-type' ? `kapi-content-types-${row.id}` : undefined}
-            className="h-8 w-full bg-surface px-1.5 text-[12.5px] text-fg placeholder:text-faint focus:outline-none focus:ring-1 focus:ring-inset focus:ring-accent disabled:opacity-50"
-            disabled={row.auto}
-          />
+          <div className="relative flex h-8 items-center bg-surface">
+            <input
+              type={masked ? 'password' : 'text'}
+              value={row.value}
+              onChange={(e) => onValue(e.target.value)}
+              placeholder={valuePlaceholder}
+              title={preview && preview !== row.value ? `→ ${preview}` : undefined}
+              list={row.key.trim().toLowerCase() === 'content-type' ? `kapi-content-types-${row.id}` : undefined}
+              className="h-8 w-full bg-transparent px-1.5 text-[12.5px] text-fg placeholder:text-faint focus:outline-none focus:ring-1 focus:ring-inset focus:ring-accent disabled:opacity-50"
+              disabled={row.auto}
+              style={secretToggle && row.secret ? { paddingRight: 22 } : undefined}
+            />
+            {secretToggle && row.secret && (
+              <button
+                type="button"
+                onClick={() => setRevealed((r) => !r)}
+                title={revealed ? 'Hide value' : 'Reveal value'}
+                className="absolute right-1.5 text-faint hover:text-dim"
+              >
+                {revealed ? <EyeOff size={12} /> : <Eye size={12} />}
+              </button>
+            )}
+          </div>
           {row.key.trim().toLowerCase() === 'content-type' && (
             <datalist id={`kapi-content-types-${row.id}`}>
               {COMMON_CONTENT_TYPES.map((ct) => (
@@ -197,6 +222,15 @@ function Row({
         {allowFiles && row.kind !== 'file' && !row.key && !row.value && (
           <IconButton label="Switch to file" onClick={() => onKind('file')}>
             <FileUp size={12} />
+          </IconButton>
+        )}
+        {secretToggle && row.kind !== 'file' && (row.key || row.value) && (
+          <IconButton
+            label={row.secret ? 'Marked secret — click to unmark' : 'Mark as secret'}
+            active={row.secret}
+            onClick={() => onSecret(!row.secret)}
+          >
+            <Lock size={11} />
           </IconButton>
         )}
         {(row.key || row.value) && (

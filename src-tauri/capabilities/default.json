@@ -21,6 +21,16 @@
       ]
     },
     "dialog:default",
-    "websocket:default"
+    "websocket:default",
+    "allow-kapi-write-text-file",
+    "allow-kapi-write-binary-file",
+    "allow-kapi-read-text-file",
+    "allow-kapi-path-exists",
+    "allow-kapi-mock-start",
+    "allow-kapi-mock-stop",
+    "allow-kapi-mock-is-running",
+    "allow-kapi-claude-prompt",
+    "allow-kapi-claude-available",
+    "allow-kapi-open-discovery"
   ]
 }

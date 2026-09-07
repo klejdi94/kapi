@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import {
-  Braces, ChevronRight, Copy, Download, FilePlus, FolderPlus, MoreHorizontal, Pencil, Pin, Play, Plug, Trash2,
+  ChevronRight, Copy, Download, FilePlus, FileText, Folder, FolderInput, FolderPlus, ListChecks, MoreHorizontal, Pencil, Pin, Play, Plug, Trash2, X,
 } from 'lucide-react';
 import clsx from 'clsx';
 import type { Collection, FolderNode, RequestNode, TreeNode, WebSocketNode } from '@/types';
 import { methodVar } from '@/lib/methodColor';
 import { newFolder, newRequestNode, newWebSocketNode } from '@/lib/factory';
 import { useWorkspaces } from '@/store/workspaces';
+import { useRunner } from '@/store/runner';
 import { useSession } from '@/store/session';
 import { ContextMenu, type MenuItem } from '@/components/ui/ContextMenu';
 import { toast } from '@/lib/toast';
@@ -19,6 +20,7 @@ interface DragState {
 
 export function CollectionTree({ collection }: { collection: Collection }) {
   const updateCollection = useWorkspaces((s) => s.updateCollection);
+  const duplicateCollection = useWorkspaces((s) => s.duplicateCollection);
   const deleteCollection = useWorkspaces((s) => s.deleteCollection);
   const restoreCollection = useWorkspaces((s) => s.restoreCollection);
   const addNode = useWorkspaces((s) => s.addNode);
@@ -34,12 +36,52 @@ export function CollectionTree({ collection }: { collection: Collection }) {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: string; where: 'before' | 'after' | 'inside' } | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const openMenu = (e: React.MouseEvent, items: MenuItem[]) => {
     e.preventDefault();
     e.stopPropagation();
     setMenu({ x: e.clientX, y: e.clientY, items });
   };
+
+  const clearSelected = () => setSelected(new Set());
+  const toggleSelected = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const deleteSelected = () => {
+    const removed = [...selected].map((id) => deleteNode(collection.id, id)).filter((r): r is NonNullable<typeof r> => !!r);
+    if (removed.length) {
+      toast.undo(`Deleted ${removed.length} item${removed.length === 1 ? '' : 's'}`, () => {
+        for (const r of removed) addNode(collection.id, r.parentId, r.node);
+      });
+    }
+    clearSelected();
+  };
+
+  const moveSelectedTo = (parentFolderId: string | null) => {
+    for (const id of selected) {
+      // Never move a folder into its own descendant.
+      if (parentFolderId && contains(collection.items, id, parentFolderId)) continue;
+      moveNode({ collectionId: collection.id, nodeId: id }, { collectionId: collection.id, parentFolderId, index: Number.MAX_SAFE_INTEGER });
+    }
+    clearSelected();
+  };
+
+  const collectFolders = (items: TreeNode[], depth = 0): { id: string; name: string; depth: number }[] =>
+    items.flatMap((item) => (item.type === 'folder' ? [{ id: item.id, name: item.name, depth }, ...collectFolders(item.items, depth + 1)] : []));
+
+  const moveMenuItems = (): MenuItem[] => [
+    { label: 'Top level', icon: <FolderInput size={12} />, onSelect: () => moveSelectedTo(null) },
+    ...collectFolders(collection.items)
+      .filter((f) => !selected.has(f.id))
+      .map((f) => ({ label: `${'　'.repeat(f.depth)}${f.name}`, icon: <FolderInput size={12} />, onSelect: () => moveSelectedTo(f.id) })),
+  ];
 
   const openRequest = (node: RequestNode) =>
     openRequestNode({ nodeId: node.id, collectionId: collection.id, name: node.name, request: node.request });
@@ -84,39 +126,49 @@ export function CollectionTree({ collection }: { collection: Collection }) {
         if (!dropTarget) handleDrop(null, 'inside');
       }}
     >
-      <div className="group flex items-center gap-1 px-1 py-0.5">
+      <div
+        className="group flex items-center gap-0.5 px-1 py-0.5"
+        onContextMenu={(e) =>
+          openMenu(e, [
+            { label: 'Open', icon: <FileText size={12} />, onSelect: () => useSession.getState().openCollectionTab(collection.id, collection.name) },
+            { label: 'New request', icon: <FilePlus size={12} />, onSelect: () => addNode(collection.id, null, newRequestNode()), separatorAbove: true },
+            { label: 'New WebSocket', icon: <Plug size={12} />, onSelect: () => addNode(collection.id, null, newWebSocketNode()) },
+            { label: 'New folder', icon: <FolderPlus size={12} />, onSelect: () => addNode(collection.id, null, newFolder()) },
+            { label: 'Rename', icon: <Pencil size={12} />, onSelect: () => setRenaming(collection.id), separatorAbove: true },
+            { label: 'Duplicate', icon: <Copy size={12} />, onSelect: () => duplicateCollection(collection.id) },
+            { label: 'Export collection', icon: <Download size={12} />, onSelect: () => window.dispatchEvent(new CustomEvent('kapi:export-collection', { detail: collection.id })) },
+            { label: 'Run collection', icon: <ListChecks size={12} />, onSelect: () => useRunner.getState().openFor(collection.id, null) },
+            {
+              label: 'Delete collection', icon: <Trash2 size={12} />, danger: true, separatorAbove: true,
+              onSelect: () => {
+                const removed = deleteCollection(collection.id);
+                if (removed) {
+                  const ws = useWorkspaces.getState();
+                  const index = ws.workspaces.find((w) => w.id === ws.activeWorkspaceId)?.collections.length ?? 0;
+                  toast.undo(`Deleted "${collection.name}"`, () => restoreCollection(removed, index));
+                }
+              },
+            },
+          ])
+        }
+      >
         <button
           onClick={() => updateCollection(collection.id, { expanded: !collection.expanded })}
-          className="flex h-6 flex-1 items-center gap-1 rounded px-1 text-left hover:bg-surface-2"
-          onContextMenu={(e) =>
-            openMenu(e, [
-              { label: 'New request', icon: <FilePlus size={12} />, onSelect: () => addNode(collection.id, null, newRequestNode()) },
-              { label: 'New WebSocket', icon: <Plug size={12} />, onSelect: () => addNode(collection.id, null, newWebSocketNode()) },
-              { label: 'New folder', icon: <FolderPlus size={12} />, onSelect: () => addNode(collection.id, null, newFolder()) },
-              { label: 'Rename', icon: <Pencil size={12} />, onSelect: () => setRenaming(collection.id), separatorAbove: true },
-              { label: 'Scripts…', icon: <Braces size={12} />, onSelect: () => window.dispatchEvent(new CustomEvent('kapi:collection-scripts', { detail: collection.id })) },
-              { label: 'Export collection', icon: <Download size={12} />, onSelect: () => window.dispatchEvent(new CustomEvent('kapi:export-collection', { detail: collection.id })) },
-              {
-                label: 'Delete collection', icon: <Trash2 size={12} />, danger: true, separatorAbove: true,
-                onSelect: () => {
-                  const removed = deleteCollection(collection.id);
-                  if (removed) {
-                    const ws = useWorkspaces.getState();
-                    const index = ws.workspaces.find((w) => w.id === ws.activeWorkspaceId)?.collections.length ?? 0;
-                    toast.undo(`Deleted "${collection.name}"`, () => restoreCollection(removed, index));
-                  }
-                },
-              },
-            ])
-          }
+          className="flex h-6 w-5 shrink-0 items-center justify-center rounded hover:bg-surface-2"
         >
           <ChevronRight size={13} className={clsx('shrink-0 text-faint transition-transform', collection.expanded && 'rotate-90')} />
-          {renaming === collection.id ? (
-            <RenameInput value={collection.name} onCommit={(name) => { updateCollection(collection.id, { name }); setRenaming(null); }} onCancel={() => setRenaming(null)} />
-          ) : (
-            <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-fg">{collection.name}</span>
-          )}
         </button>
+        {renaming === collection.id ? (
+          <RenameInput value={collection.name} onCommit={(name) => { updateCollection(collection.id, { name }); setRenaming(null); }} onCancel={() => setRenaming(null)} />
+        ) : (
+          <button
+            onClick={() => useSession.getState().openCollectionTab(collection.id, collection.name)}
+            title="Open collection"
+            className="flex h-6 min-w-0 flex-1 items-center rounded px-1 text-left hover:bg-surface-2"
+          >
+            <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-fg">{collection.name}</span>
+          </button>
+        )}
         <button
           className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-faint opacity-0 hover:bg-surface-2 hover:text-fg group-hover:opacity-100"
           onClick={(e) =>
@@ -124,6 +176,7 @@ export function CollectionTree({ collection }: { collection: Collection }) {
               { label: 'New request', icon: <FilePlus size={12} />, onSelect: () => addNode(collection.id, null, newRequestNode()) },
               { label: 'New WebSocket', icon: <Plug size={12} />, onSelect: () => addNode(collection.id, null, newWebSocketNode()) },
               { label: 'New folder', icon: <FolderPlus size={12} />, onSelect: () => addNode(collection.id, null, newFolder()) },
+              { label: 'Run collection', icon: <ListChecks size={12} />, onSelect: () => useRunner.getState().openFor(collection.id, null), separatorAbove: true },
             ])
           }
         >
@@ -131,10 +184,31 @@ export function CollectionTree({ collection }: { collection: Collection }) {
         </button>
       </div>
 
+      {selected.size > 0 && (
+        <div className="mx-1.5 mb-1 flex items-center justify-between rounded-md border border-accent/30 bg-accent/10 px-2 py-1">
+          <span className="text-[11px] font-medium text-accent">{selected.size} selected</span>
+          <div className="flex items-center gap-0.5">
+            <button
+              onClick={(e) => openMenu(e, moveMenuItems())}
+              title="Move to folder…"
+              className="flex h-5.5 w-5.5 items-center justify-center rounded text-accent hover:bg-accent/15"
+            >
+              <FolderInput size={12} />
+            </button>
+            <button onClick={deleteSelected} title="Delete selected" className="flex h-5.5 w-5.5 items-center justify-center rounded text-danger hover:bg-danger/15">
+              <Trash2 size={12} />
+            </button>
+            <button onClick={clearSelected} title="Clear selection" className="flex h-5.5 w-5.5 items-center justify-center rounded text-accent hover:bg-accent/15">
+              <X size={12} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {collection.expanded && (
         <div className="pl-2.5">
           {collection.items.length === 0 && (
-            <p className="px-3 py-1.5 text-[11.5px] text-faint">Empty — right-click to add a request.</p>
+            <p className="px-3 py-1.5 text-[11.5px] text-faint">Empty — right-click to add a request. ⌘/Ctrl-click to select multiple.</p>
           )}
           {collection.items.map((node) => (
             <NodeRow
@@ -157,6 +231,8 @@ export function CollectionTree({ collection }: { collection: Collection }) {
               dropTarget={dropTarget}
               setDropTarget={setDropTarget}
               onDrop={handleDrop}
+              selected={selected}
+              onToggleSelect={toggleSelected}
             />
           ))}
         </div>
@@ -206,6 +282,8 @@ function NodeRow({
   dropTarget,
   setDropTarget,
   onDrop,
+  selected,
+  onToggleSelect,
 }: {
   node: TreeNode;
   depth: number;
@@ -225,6 +303,8 @@ function NodeRow({
   dropTarget: { id: string; where: 'before' | 'after' | 'inside' } | null;
   setDropTarget: (t: { id: string; where: 'before' | 'after' | 'inside' } | null) => void;
   onDrop: (targetId: string | null, where: 'before' | 'after' | 'inside') => void;
+  selected: Set<string>;
+  onToggleSelect: (id: string) => void;
 }) {
   const activeTabId = useSession((s) => s.activeTabId);
   const tabs = useSession((s) => s.tabs);
@@ -275,6 +355,17 @@ function NodeRow({
       <div className={clsx('absolute inset-x-2 h-0.5 rounded bg-accent', dropTarget.where === 'before' ? '-top-px' : '-bottom-px')} />
     ) : null;
 
+  const isSelected = selected.has(node.id);
+  /** Cmd/Ctrl-click toggles multi-select instead of the row's normal action. */
+  const selectAware = (e: React.MouseEvent, action: () => void) => {
+    if (e.metaKey || e.ctrlKey) {
+      e.stopPropagation();
+      onToggleSelect(node.id);
+      return;
+    }
+    action();
+  };
+
   if (node.type === 'folder') {
     const folder = node as FolderNode;
     return (
@@ -288,29 +379,42 @@ function NodeRow({
           onDrop={onRowDrop}
           className={clsx(
             'group flex min-w-0 items-center gap-1 rounded py-0.5 pr-1 hover:bg-surface-2',
+            isSelected && 'bg-accent/15 ring-1 ring-inset ring-accent/40',
             dropTarget?.id === node.id && dropTarget.where === 'inside' && 'bg-accent/10 ring-1 ring-inset ring-accent/40',
           )}
           style={{ paddingLeft: 4 + depth * 14 }}
         >
-          <button
-            onClick={() => updateNode(collection.id, node.id, { expanded: !folder.expanded })}
+          <div
             onContextMenu={(e) =>
               openMenu(e, [
-                { label: 'New request', icon: <FilePlus size={12} />, onSelect: () => addNode(collection.id, node.id, newRequestNode()) },
+                { label: 'Open', icon: <FileText size={12} />, onSelect: () => useSession.getState().openFolderTab(collection.id, node.id, node.name) },
+                { label: 'New request', icon: <FilePlus size={12} />, onSelect: () => addNode(collection.id, node.id, newRequestNode()), separatorAbove: true },
                 { label: 'New WebSocket', icon: <Plug size={12} />, onSelect: () => addNode(collection.id, node.id, newWebSocketNode()) },
                 { label: 'New folder', icon: <FolderPlus size={12} />, onSelect: () => addNode(collection.id, node.id, newFolder()) },
+                { label: 'Run folder', icon: <ListChecks size={12} />, onSelect: () => useRunner.getState().openFor(collection.id, node.id), separatorAbove: true },
                 ...commonMenuItems(),
               ])
             }
-            className="flex h-6.5 flex-1 items-center gap-1 text-left"
+            className="flex h-6.5 flex-1 items-center gap-1"
           >
-            <ChevronRight size={12} className={clsx('shrink-0 text-faint transition-transform', folder.expanded && 'rotate-90')} />
+            <button
+              onClick={(e) => selectAware(e, () => updateNode(collection.id, node.id, { expanded: !folder.expanded }))}
+              className="flex h-6.5 w-4 shrink-0 items-center justify-center"
+            >
+              <ChevronRight size={12} className={clsx('shrink-0 text-faint transition-transform', folder.expanded && 'rotate-90')} />
+            </button>
+            <Folder size={12} className="shrink-0 text-faint" />
             {renaming === node.id ? (
               <RenameInput value={node.name} onCommit={(name) => { updateNode(collection.id, node.id, { name }); setRenaming(null); }} onCancel={() => setRenaming(null)} />
             ) : (
-              <span className="min-w-0 flex-1 truncate text-[12.5px] text-fg">{folder.name}</span>
+              <button
+                onClick={(e) => selectAware(e, () => useSession.getState().openFolderTab(collection.id, node.id, node.name))}
+                className="flex h-6.5 min-w-0 flex-1 items-center gap-1.5 text-left"
+              >
+                <span className="min-w-0 flex-1 truncate text-[12.5px] text-fg">{folder.name}</span>
+              </button>
             )}
-          </button>
+          </div>
           <button
             className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-faint opacity-0 hover:bg-surface-3 group-hover:opacity-100"
             onClick={(e) => openMenu(e, commonMenuItems())}
@@ -340,6 +444,8 @@ function NodeRow({
               dropTarget={dropTarget}
               setDropTarget={setDropTarget}
               onDrop={onDrop}
+              selected={selected}
+              onToggleSelect={onToggleSelect}
             />
           ))}
       </div>
@@ -358,8 +464,12 @@ function NodeRow({
           onDragOver={onDragOverRow}
           onDrop={onRowDrop}
           onContextMenu={(e) => openMenu(e, [{ label: 'Open', icon: <Play size={12} />, onSelect: () => openWebSocket(ws) }, ...commonMenuItems()])}
-          onClick={() => openWebSocket(ws)}
-          className={clsx('group flex h-6.5 min-w-0 cursor-pointer items-center gap-1.5 rounded pr-1 hover:bg-surface-2', isOpen && 'bg-surface-2')}
+          onClick={(e) => selectAware(e, () => openWebSocket(ws))}
+          className={clsx(
+            'group flex h-6.5 min-w-0 cursor-pointer items-center gap-1.5 rounded pr-1 hover:bg-surface-2',
+            isOpen && 'bg-surface-2',
+            isSelected && 'bg-accent/15 ring-1 ring-inset ring-accent/40',
+          )}
           style={{ paddingLeft: 4 + (depth + 1) * 14 }}
         >
           <Plug size={11} className="w-9 shrink-0 text-info" />
@@ -390,8 +500,12 @@ function NodeRow({
         onDragOver={onDragOverRow}
         onDrop={onRowDrop}
         onContextMenu={(e) => openMenu(e, [{ label: 'Send', icon: <Play size={12} />, onSelect: () => openRequest(req) }, ...commonMenuItems()])}
-        onClick={() => openRequest(req)}
-        className={clsx('group flex h-6.5 min-w-0 cursor-pointer items-center gap-1.5 rounded pr-1 hover:bg-surface-2', isOpen && 'bg-surface-2')}
+        onClick={(e) => selectAware(e, () => openRequest(req))}
+        className={clsx(
+          'group flex h-6.5 min-w-0 cursor-pointer items-center gap-1.5 rounded pr-1 hover:bg-surface-2',
+          isOpen && 'bg-surface-2',
+          isSelected && 'bg-accent/15 ring-1 ring-inset ring-accent/40',
+        )}
         style={{ paddingLeft: 4 + (depth + 1) * 14 }}
       >
         <span className="w-9 shrink-0 text-right text-[9.5px] font-bold" style={{ color: methodVar(req.request.method) }}>

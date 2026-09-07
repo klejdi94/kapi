@@ -26,18 +26,21 @@ interface PmRequest {
   body?: PmBody;
   auth?: PmAuth;
 }
+interface PmScriptEvent { listen: string; script?: { exec?: string[] | string } }
 interface PmItem {
   name: string;
   item?: PmItem[];
   request?: PmRequest;
   auth?: PmAuth;
   variable?: PmVariable[];
+  event?: PmScriptEvent[];
 }
 interface PmCollection {
   info?: { name?: string; description?: string };
   item?: PmItem[];
   variable?: PmVariable[];
   auth?: PmAuth;
+  event?: PmScriptEvent[];
 }
 interface PmEnvironment {
   name?: string;
@@ -57,6 +60,12 @@ export function looksLikePostmanEnvironment(data: unknown): data is PmEnvironmen
 function toVars(vars?: PmVariable[]): KV[] {
   const rows = (vars ?? []).filter((v) => v.key).map((v) => kv({ key: v.key!, value: v.value ?? '', enabled: !v.disabled, description: v.description }));
   return withTrailingBlank(rows);
+}
+
+function toScripts(events?: PmScriptEvent[]): { pre?: string; test?: string } {
+  const execOf = (listen: string) => events?.find((e) => e.listen === listen)?.script?.exec;
+  const toText = (exec: string[] | string | undefined) => (Array.isArray(exec) ? exec.join('\n') : (exec ?? ''));
+  return { pre: toText(execOf('prerequest')) || undefined, test: toText(execOf('test')) || undefined };
 }
 
 function toHeaders(headers?: PmHeader[]): KV[] {
@@ -133,6 +142,9 @@ function toItems(items: PmItem[]): TreeNode[] {
     node.request.headers = toHeaders(req.header);
     node.request.auth = toAuth(req.auth);
     node.request.body = toBody(req.body);
+    const scripts = toScripts(item.event);
+    node.request.preRequestScript = scripts.pre;
+    node.request.testScript = scripts.test;
     const query = typeof req.url === 'object' ? req.url.query : undefined;
     if (query?.length) {
       node.request.params = withTrailingBlank(query.map((q) => kv({ key: q.key, value: q.value ?? '', enabled: !q.disabled })));
@@ -147,6 +159,9 @@ export function importPostmanCollection(data: PmCollection): Collection {
   collection.auth = toAuth(data.auth);
   collection.variables = toVars(data.variable);
   collection.items = toItems(data.item ?? []);
+  const scripts = toScripts(data.event);
+  collection.preRequestScript = scripts.pre;
+  collection.testScript = scripts.test;
   return collection;
 }
 

@@ -59,6 +59,19 @@ export function walk(items: TreeNode[], fn: (node: TreeNode, ancestors: FolderNo
   }
 }
 
+/** Tallies every node type reachable under `items`, folders themselves included — used by the collection/folder detail pages' stat row. */
+export function countByType(items: TreeNode[]): { requests: number; folders: number; websockets: number } {
+  let requests = 0;
+  let folders = 0;
+  let websockets = 0;
+  walk(items, (node) => {
+    if (node.type === 'request') requests++;
+    else if (node.type === 'folder') folders++;
+    else if (node.type === 'websocket') websockets++;
+  });
+  return { requests, folders, websockets };
+}
+
 export function allRequests(collection: Collection): { node: RequestNode; path: string[] }[] {
   const out: { node: RequestNode; path: string[] }[] = [];
   walk(collection.items, (node, ancestors) => {

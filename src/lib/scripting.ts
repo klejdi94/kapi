@@ -150,3 +150,45 @@ export function responseToScriptInput(response: KapiResponse): ScriptContext['re
     timeMs: response.timings.total,
   };
 }
+
+/** The three writable variable scopes a script can touch, threaded between chained scripts. */
+export interface ScriptVars {
+  environment: KV[];
+  globals: KV[];
+  collectionVariables: KV[];
+}
+
+export interface ChainOutcome {
+  vars: ScriptVars;
+  ran: boolean;
+  logs: string[];
+  errors: string[];
+  tests: TestResult[];
+}
+
+/**
+ * Runs collection-level then request-level scripts, feeding each one's variable
+ * writes into the next — matching Postman's execution order, so a collection
+ * script can set up a value the request script then refines.
+ */
+export function chainScripts(
+  scripts: (string | undefined)[],
+  vars: ScriptVars,
+  base: Pick<ScriptContext, 'request' | 'response'>,
+): ChainOutcome {
+  const out: ChainOutcome = { vars, ran: false, logs: [], errors: [], tests: [] };
+  for (const script of scripts) {
+    if (!script?.trim()) continue;
+    out.ran = true;
+    const result = runScript(script, { ...base, ...out.vars });
+    out.vars = {
+      environment: result.environment,
+      globals: result.globals,
+      collectionVariables: result.collectionVariables,
+    };
+    out.logs.push(...result.logs);
+    if (result.error) out.errors.push(result.error);
+    out.tests.push(...result.tests);
+  }
+  return out;
+}

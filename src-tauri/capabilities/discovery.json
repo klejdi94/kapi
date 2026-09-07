@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "discovery",
+  "description": "The API-discovery capture window loads arbitrary third-party sites, so it gets only the one command it needs to report captured calls back — none of the filesystem, shell, HTTP or Claude commands the main window has.",
+  "windows": ["kapi-discovery"],
+  "remote": {
+    "urls": ["https://*", "http://*"]
+  },
+  "permissions": ["allow-kapi-discovery-report"]
+}

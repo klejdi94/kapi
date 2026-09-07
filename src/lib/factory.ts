@@ -139,6 +139,7 @@ export function newWorkspace(name = 'New workspace'): Workspace {
     updatedAt: Date.now(),
     gitRepoPath: null,
     mockServer: { port: 0, routes: [] },
+    cookies: [],
   };
 }
 

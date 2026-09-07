@@ -5,7 +5,7 @@ import { newTab } from '@/lib/factory';
 import { withUrlParams } from '@/lib/send';
 import { fileJSONStorage } from '@/lib/fileStorage';
 
-export type SidebarPanel = 'collections' | 'environments' | 'history' | 'git' | 'mock' | 'ai';
+export type SidebarPanel = 'collections' | 'environments' | 'history' | 'git' | 'mock' | 'ai' | 'discovery' | 'cookies';
 export type SplitLayout = 'horizontal' | 'vertical';
 
 interface SessionState {
@@ -26,9 +26,12 @@ interface SessionState {
   openTab: (tab?: Partial<Tab>) => string;
   openRequestNode: (args: { nodeId: string; collectionId: string; name: string; request: RequestDef }) => string;
   openWebSocketNode: (args: { nodeId: string; collectionId: string; name: string; request: WebSocketRequestDef }) => string;
+  openCollectionTab: (collectionId: string, name: string) => string;
+  openFolderTab: (collectionId: string, nodeId: string, name: string) => string;
   closeTab: (id: string) => void;
   closeOtherTabs: (id: string) => void;
   closeAllTabs: () => void;
+  togglePinTab: (id: string) => void;
   setActiveTab: (id: string) => void;
   updateTabRequest: (id: string, request: RequestDef) => void;
   updateTabWs: (id: string, ws: WebSocketRequestDef) => void;
@@ -83,6 +86,28 @@ export const useSession = create<SessionState>()(
         return tab.id;
       },
 
+      openCollectionTab: (collectionId, name) => {
+        const existing = get().tabs.find((t) => t.kind === 'collection' && t.collectionId === collectionId);
+        if (existing) {
+          setState({ activeTabId: existing.id });
+          return existing.id;
+        }
+        const tab = newTab({ collectionId, name, kind: 'collection' });
+        setState((state) => ({ tabs: [...state.tabs, tab], activeTabId: tab.id }));
+        return tab.id;
+      },
+
+      openFolderTab: (collectionId, nodeId, name) => {
+        const existing = get().tabs.find((t) => t.kind === 'folder' && t.nodeId === nodeId);
+        if (existing) {
+          setState({ activeTabId: existing.id });
+          return existing.id;
+        }
+        const tab = newTab({ collectionId, nodeId, name, kind: 'folder' });
+        setState((state) => ({ tabs: [...state.tabs, tab], activeTabId: tab.id }));
+        return tab.id;
+      },
+
       closeTab: (id) =>
         setState((state) => {
           const index = state.tabs.findIndex((t) => t.id === id);
@@ -94,9 +119,16 @@ export const useSession = create<SessionState>()(
         }),
 
       closeOtherTabs: (id) =>
-        setState((state) => ({ ...state, tabs: state.tabs.filter((t) => t.id === id), activeTabId: id })),
+        setState((state) => ({ ...state, tabs: state.tabs.filter((t) => t.id === id || t.pinned), activeTabId: id })),
 
-      closeAllTabs: () => setState({ tabs: [], activeTabId: '' }),
+      closeAllTabs: () =>
+        setState((state) => {
+          const tabs = state.tabs.filter((t) => t.pinned);
+          return { tabs, activeTabId: tabs[tabs.length - 1]?.id ?? '' };
+        }),
+
+      togglePinTab: (id) =>
+        setState((state) => ({ tabs: state.tabs.map((t) => (t.id === id ? { ...t, pinned: !t.pinned } : t)) })),
 
       setActiveTab: (id) => setState({ activeTabId: id }),
 

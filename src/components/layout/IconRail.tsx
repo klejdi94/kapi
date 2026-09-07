@@ -1,4 +1,4 @@
-import { Bot, FolderTree, GitBranch, History, Layers, Server } from 'lucide-react';
+import { Bot, Cookie, FolderTree, GitBranch, History, Layers, Radar, Server } from 'lucide-react';
 import { useSession, type SidebarPanel } from '@/store/session';
 
 const ITEMS: { value: SidebarPanel; label: string; shortLabel: string; icon: typeof FolderTree }[] = [
@@ -7,6 +7,8 @@ const ITEMS: { value: SidebarPanel; label: string; shortLabel: string; icon: typ
   { value: 'history', label: 'History', shortLabel: 'History', icon: History },
   { value: 'git', label: 'Git', shortLabel: 'Git', icon: GitBranch },
   { value: 'mock', label: 'Mock Servers', shortLabel: 'Mock', icon: Server },
+  { value: 'discovery', label: 'Discovery', shortLabel: 'Discover', icon: Radar },
+  { value: 'cookies', label: 'Cookie Jar', shortLabel: 'Cookies', icon: Cookie },
   { value: 'ai', label: 'Ask Claude', shortLabel: 'AI', icon: Bot },
 ];
 

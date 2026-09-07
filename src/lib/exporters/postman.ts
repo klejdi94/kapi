@@ -2,6 +2,14 @@ import type { AuthConfig, Collection, Environment, KV, TreeNode } from '@/types'
 
 const enabledOnly = (rows: KV[]) => rows.filter((r) => r.enabled && r.key.trim());
 
+/** Postman's `event` array — one entry per non-empty script, split into lines the way Postman itself stores them. */
+function scriptsToEvent(pre?: string, test?: string): unknown[] | undefined {
+  const events: unknown[] = [];
+  if (pre?.trim()) events.push({ listen: 'prerequest', script: { type: 'text/javascript', exec: pre.split('\n') } });
+  if (test?.trim()) events.push({ listen: 'test', script: { type: 'text/javascript', exec: test.split('\n') } });
+  return events.length ? events : undefined;
+}
+
 function authToPostman(auth: AuthConfig): unknown {
   switch (auth.type) {
     case 'bearer':
@@ -82,6 +90,7 @@ function nodeToPostman(node: TreeNode): unknown {
       auth: authToPostman(req.auth),
       body: req.body.mode === 'none' ? undefined : requestBodyToPostman(req.body),
     },
+    event: scriptsToEvent(req.preRequestScript, req.testScript),
   };
 }
 
@@ -95,6 +104,7 @@ export function exportPostmanCollection(collection: Collection): object {
     auth: authToPostman(collection.auth),
     variable: enabledOnly(collection.variables).map((v) => ({ key: v.key, value: v.value })),
     item: collection.items.map(nodeToPostman).filter(Boolean),
+    event: scriptsToEvent(collection.preRequestScript, collection.testScript),
   };
 }
 

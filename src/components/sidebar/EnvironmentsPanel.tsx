@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Check, Globe, Plus, Trash2 } from 'lucide-react';
+import { Check, GitCompareArrows, Globe, Plus, Trash2 } from 'lucide-react';
 import { useWorkspaces, useActiveWorkspace } from '@/store/workspaces';
 import { KVEditor } from '@/components/ui/KVEditor';
 import { IconButton, Button, Field } from '@/components/ui/primitives';
+import { EnvironmentDiffModal } from './EnvironmentDiffModal';
 import { confirmAction } from '@/lib/confirm';
 import clsx from 'clsx';
 
@@ -15,6 +16,7 @@ export function EnvironmentsPanel() {
   const setGlobals = useWorkspaces((s) => s.setGlobals);
 
   const [selected, setSelected] = useState<'globals' | string>(workspace.activeEnvironmentId ?? 'globals');
+  const [diffOpen, setDiffOpen] = useState(false);
   const current = selected === 'globals' ? null : workspace.environments.find((e) => e.id === selected);
   const activeName = workspace.environments.find((e) => e.id === workspace.activeEnvironmentId)?.name;
 
@@ -24,14 +26,27 @@ export function EnvironmentsPanel() {
     if (selected === id) setSelected('globals');
   };
 
+  const diffOptions = [
+    { id: 'globals', name: 'Globals', variables: workspace.globals },
+    ...workspace.environments.map((e) => ({ id: e.id, name: e.name, variables: e.variables })),
+  ];
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-2.5 py-2">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-faint">Environments</span>
-        <IconButton label="New environment" onClick={() => setSelected(addEnvironment())}>
-          <Plus size={13} />
-        </IconButton>
+        <div className="flex items-center gap-0.5">
+          {workspace.environments.length > 0 && (
+            <IconButton label="Compare environments" onClick={() => setDiffOpen(true)}>
+              <GitCompareArrows size={13} />
+            </IconButton>
+          )}
+          <IconButton label="New environment" onClick={() => setSelected(addEnvironment())}>
+            <Plus size={13} />
+          </IconButton>
+        </div>
       </div>
+      <EnvironmentDiffModal open={diffOpen} onClose={() => setDiffOpen(false)} options={diffOptions} />
 
       <p className="px-2.5 pb-2 text-[11px] leading-snug text-faint">
         Variables fill <code className="text-dim">{'{{name}}'}</code> placeholders in URLs, headers, auth and bodies.
@@ -92,7 +107,7 @@ export function EnvironmentsPanel() {
           <>
             <p className="text-[11px] text-faint">Available in every workspace request — the weakest scope.</p>
             <div className="overflow-hidden rounded-md border border-line">
-              <KVEditor rows={workspace.globals} onChange={setGlobals} showDescription />
+              <KVEditor rows={workspace.globals} onChange={setGlobals} showDescription secretToggle />
             </div>
           </>
         ) : current ? (
@@ -113,7 +128,7 @@ export function EnvironmentsPanel() {
               )}
             </div>
             <div className="overflow-hidden rounded-md border border-line">
-              <KVEditor rows={current.variables} onChange={(variables) => updateEnvironment(current.id, { variables })} showDescription />
+              <KVEditor rows={current.variables} onChange={(variables) => updateEnvironment(current.id, { variables })} showDescription secretToggle />
             </div>
           </>
         ) : (
