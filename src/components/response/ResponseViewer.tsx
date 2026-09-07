@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BookOpen, GitCompareArrows, Send, Trash2, WrapText, X } from 'lucide-react';
 import type { ResponseView, SavedExample } from '@/types';
 import { Segmented, IconButton, EmptyState, Spinner, Badge } from '@/components/ui/primitives';
@@ -6,6 +6,8 @@ import { ResponseMeta } from './ResponseMeta';
 import { PrettyView, RawView, PreviewView, HeadersView, CookiesView, TimingsView } from './Views';
 import { JsonTree } from './JsonTree';
 import { ResponseDiffView } from './ResponseDiffView';
+import { StreamView } from './StreamView';
+import type { SseEvent } from '@/lib/sse';
 import { ErrorView } from './ErrorView';
 import { TestsView } from './TestsView';
 import type { TestResult } from '@/lib/scripting';
@@ -19,6 +21,7 @@ import { toast } from '@/lib/toast';
 export function ResponseViewer({
   run,
   loading,
+  sseEvents,
   onSaveExample,
   examples,
   onLoadExample,
@@ -30,6 +33,7 @@ export function ResponseViewer({
 }: {
   run: RunResult | null;
   loading: boolean;
+  sseEvents?: SseEvent[];
   onSaveExample?: () => void;
   examples?: SavedExample[];
   onLoadExample?: (example: SavedExample) => void;
@@ -45,7 +49,15 @@ export function ResponseViewer({
   const [examplesOpen, setExamplesOpen] = useState(false);
   const [diffExample, setDiffExample] = useState<SavedExample | null>(null);
 
+  // Jump to the Stream tab the moment the first event of a new run arrives,
+  // so a streaming response is visible without an extra click.
+  useEffect(() => {
+    if (sseEvents?.length === 1) setView('responseView', 'stream');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sseEvents?.length]);
+
   if (loading && !run) {
+    if (sseEvents?.length) return <StreamView events={sseEvents} loading />;
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-faint">
         <Spinner className="h-6 w-6" />
@@ -127,6 +139,7 @@ export function ResponseViewer({
               { value: 'cookies', label: 'Cookies', count: cookieCount },
               { value: 'timings', label: 'Timings' },
               { value: 'tests', label: 'Tests', count: testResults?.length ?? 0 },
+              ...(sseEvents?.length ? [{ value: 'stream' as const, label: 'Stream', count: sseEvents.length }] : []),
             ] as const
           }
         />
@@ -216,6 +229,7 @@ export function ResponseViewer({
             ) : (
               <JsonTree value={jsonValue} onExtractVariable={onExtractVariable} />
             ))}
+          {view === 'stream' && <StreamView events={sseEvents ?? []} loading={loading} />}
         </div>
       )}
     </div>

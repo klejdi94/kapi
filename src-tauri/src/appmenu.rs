@@ -72,6 +72,7 @@ pub fn build<R: Runtime>(app: &App<R>) -> tauri::Result<Menu<R>> {
         .build()?;
 
     let help_menu = SubmenuBuilder::new(app, "Help")
+        .item(&MenuItemBuilder::with_id("check-for-updates", "Check for Updates…").build(app)?)
         .item(&MenuItemBuilder::with_id("view-source", "kapi on GitHub").build(app)?)
         .build()?;
 

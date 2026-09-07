@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "kapi",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "identifier": "com.klejdi94.kapi",
   "build": {
     "frontendDist": "../dist",
@@ -28,6 +28,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -40,6 +41,15 @@
     },
     "macOS": {
       "signingIdentity": "-"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://github.com/klejdi94/kapi/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJFNjRBMTkyRDkxNEMyMTgKUldRWXdoVFprcUZrTHJPZEtLenFvN2NQQkFqM0NSMDE0Y2prNFpIS21tbXBnaDRDMWJOSDQvNkYK"
     }
   }
 }

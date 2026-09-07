@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import type { RequestSettings } from '@/types';
-import { Field, Checkbox } from '@/components/ui/primitives';
+import { Field, Checkbox, Input } from '@/components/ui/primitives';
 
 export function SettingsTab({ settings, onChange }: { settings: RequestSettings; onChange: (settings: RequestSettings) => void }) {
   const set = <K extends keyof RequestSettings>(key: K, value: RequestSettings[K]) => onChange({ ...settings, [key]: value });
+  const [mtlsOpen, setMtlsOpen] = useState(!!(settings.clientCertPem || settings.clientKeyPem));
 
   return (
     <div className="flex max-w-lg flex-col gap-6 p-4">
@@ -34,6 +36,74 @@ export function SettingsTab({ settings, onChange }: { settings: RequestSettings;
           checked={settings.autoHeaders}
           onChange={(v) => set('autoHeaders', v)}
         />
+      </div>
+
+      <div className="flex flex-col gap-3 border-t border-line pt-5">
+        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-faint">Network</h3>
+        <Field label="Proxy" hint="e.g. http://localhost:8080 or socks5://localhost:1080. Empty means no proxy. {{variables}} work here too.">
+          <Input
+            value={settings.proxyUrl ?? ''}
+            onChange={(e) => set('proxyUrl', e.target.value)}
+            placeholder="http://localhost:8080"
+            className="max-w-xs font-mono"
+          />
+        </Field>
+        <Checkbox
+          label="Skip certificate verification"
+          hint="Accepts self-signed or otherwise untrusted certificates — for an internal CA you haven't imported. Only turn this on for hosts you trust."
+          checked={!!settings.insecureSkipTlsVerify}
+          onChange={(v) => set('insecureSkipTlsVerify', v)}
+        />
+      </div>
+
+      <div className="flex flex-col gap-3 border-t border-line pt-5">
+        <Checkbox
+          label="Client certificate (mutual TLS)"
+          hint="Presents a certificate to the server instead of just verifying its own. Routes this request through a separate client — form-data bodies aren't supported alongside it yet."
+          checked={mtlsOpen}
+          onChange={(v) => {
+            setMtlsOpen(v);
+            if (!v) onChange({ ...settings, clientCertPem: undefined, clientKeyPem: undefined, caCertPem: undefined });
+          }}
+        />
+        {mtlsOpen && (
+          <div className="flex flex-col gap-3 pl-1">
+            <Field label="Client certificate (PEM)">
+              <textarea
+                value={settings.clientCertPem ?? ''}
+                onChange={(e) => set('clientCertPem', e.target.value)}
+                placeholder="-----BEGIN CERTIFICATE-----"
+                rows={3}
+                spellCheck={false}
+                className="w-full resize-none rounded-md border border-line bg-surface p-2 font-mono text-[11.5px] focus:border-accent focus:outline-none"
+              />
+            </Field>
+            <Field label="Private key (PEM)">
+              <textarea
+                value={settings.clientKeyPem ?? ''}
+                onChange={(e) => set('clientKeyPem', e.target.value)}
+                placeholder="-----BEGIN PRIVATE KEY-----"
+                rows={3}
+                spellCheck={false}
+                className="w-full resize-none rounded-md border border-line bg-surface p-2 font-mono text-[11.5px] focus:border-accent focus:outline-none"
+              />
+            </Field>
+            <Field label="Custom CA certificate (PEM)" hint="Optional — trusted in addition to the system's own root store.">
+              <textarea
+                value={settings.caCertPem ?? ''}
+                onChange={(e) => set('caCertPem', e.target.value)}
+                placeholder="-----BEGIN CERTIFICATE-----"
+                rows={3}
+                spellCheck={false}
+                className="w-full resize-none rounded-md border border-line bg-surface p-2 font-mono text-[11.5px] focus:border-accent focus:outline-none"
+              />
+            </Field>
+            <p className="text-[11px] leading-relaxed text-faint">
+              Paste PEM text directly, or reference a secret-flagged variable (e.g. <code className="text-dim">{'{{clientCert}}'}</code>) so
+              the key material isn&rsquo;t sitting in the request itself.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

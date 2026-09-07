@@ -33,6 +33,8 @@ import { useDiscovery } from '@/store/discovery';
 import { formatBytes, formatDuration } from '@/lib/format';
 import { toggleTheme } from '@/lib/theme';
 import { isDesktop } from '@/lib/transport';
+import { checkForUpdate, downloadAndInstallUpdate } from '@/lib/updater';
+import { pushToast } from '@/lib/toast';
 import { listen } from '@tauri-apps/api/event';
 import { useActiveWorkspace, useWorkspaces, findCollection } from '@/store/workspaces';
 import { useHistory } from '@/store/history';
@@ -257,6 +259,7 @@ export default function App() {
           tabName: activeTab.name,
         });
       },
+      onSseEvent: (event) => useResponses.getState().appendSseEvent(activeTab.id, event),
     });
     finish(activeTab.id, result);
     if (result.ok) {
@@ -435,8 +438,52 @@ export default function App() {
       case 'view-source':
         window.open('https://github.com/klejdi94/kapi', '_blank');
         break;
+      case 'check-for-updates':
+        checkForUpdatesInteractive();
+        break;
     }
   };
+
+  // Shared by the menu item, the command palette, and the silent startup
+  // check — `silent` suppresses the "you're up to date" toast so it only
+  // shows for a user-initiated check.
+  const checkForUpdatesInteractive = async (silent = false) => {
+    try {
+      const update = await checkForUpdate();
+      if (!update) {
+        if (!silent) toast.info("You're up to date", `kapi is on the latest version`);
+        return;
+      }
+      pushToast({
+        kind: 'info',
+        title: `kapi ${update.version} is available`,
+        detail: update.body,
+        duration: 0,
+        action: {
+          label: 'Download & install',
+          run: async () => {
+            try {
+              toast.info('Downloading update…');
+              await downloadAndInstallUpdate();
+            } catch (err) {
+              toast.error('Update failed', err instanceof Error ? err.message : String(err));
+            }
+          },
+        },
+      });
+    } catch (err) {
+      if (!silent) toast.error('Could not check for updates', err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  // Quiet check shortly after launch — never interrupts the user, only
+  // surfaces a toast when an update is actually found.
+  useEffect(() => {
+    if (!isDesktop()) return;
+    const t = setTimeout(() => checkForUpdatesInteractive(true), 3000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Global keyboard shortcuts.
   useEffect(() => {
@@ -493,6 +540,7 @@ export default function App() {
       ? [{ id: 'run-collection', label: `Run collection "${collection.name}"…`, icon: <FileDown size={13} />, run: () => useRunner.getState().openFor(collection.id, null) }]
       : []),
     { id: 'inspect-token', label: 'Inspect a token…', icon: <FileDown size={13} />, run: () => useTokenInspector.getState().openWith() },
+    { id: 'check-for-updates', label: 'Check for updates…', icon: <FileDown size={13} />, run: () => checkForUpdatesInteractive() },
   ];
 
   return (
@@ -545,6 +593,7 @@ export default function App() {
                   <ResponseViewer
                     run={run.result}
                     loading={run.loading}
+                    sseEvents={run.sseEvents}
                     onSaveExample={onSaveExample}
                     examples={activeTab.request.examples}
                     onLoadExample={onLoadExample}

@@ -18,6 +18,11 @@ fn main() {
             "kapi_claude_available",
             "kapi_open_discovery",
             "kapi_discovery_report",
+            "kapi_oauth_listen",
+            "kapi_oauth_cancel",
+            "kapi_send_mtls",
+            "kapi_ai_list_available",
+            "kapi_ai_prompt",
         ])),
     )
     .expect("failed to run tauri-build");

@@ -20,8 +20,11 @@
         { "name": "git", "cmd": "git", "args": true }
       ]
     },
+    "shell:allow-open",
     "dialog:default",
     "websocket:default",
+    "updater:default",
+    "process:allow-restart",
     "allow-kapi-write-text-file",
     "allow-kapi-write-binary-file",
     "allow-kapi-read-text-file",
@@ -31,6 +34,11 @@
     "allow-kapi-mock-is-running",
     "allow-kapi-claude-prompt",
     "allow-kapi-claude-available",
-    "allow-kapi-open-discovery"
+    "allow-kapi-open-discovery",
+    "allow-kapi-oauth-listen",
+    "allow-kapi-oauth-cancel",
+    "allow-kapi-send-mtls",
+    "allow-kapi-ai-list-available",
+    "allow-kapi-ai-prompt"
   ]
 }

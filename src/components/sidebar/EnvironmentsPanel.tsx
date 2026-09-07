@@ -1,10 +1,14 @@
-import { useState } from 'react';
-import { Check, GitCompareArrows, Globe, Plus, Trash2 } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Check, FileUp, GitCompareArrows, Globe, Plus, Trash2 } from 'lucide-react';
 import { useWorkspaces, useActiveWorkspace } from '@/store/workspaces';
 import { KVEditor } from '@/components/ui/KVEditor';
 import { IconButton, Button, Field } from '@/components/ui/primitives';
 import { EnvironmentDiffModal } from './EnvironmentDiffModal';
 import { confirmAction } from '@/lib/confirm';
+import { kv, withTrailingBlank } from '@/lib/factory';
+import { parseDotenv } from '@/lib/dotenv';
+import { toast } from '@/lib/toast';
+import type { KV } from '@/types';
 import clsx from 'clsx';
 
 export function EnvironmentsPanel() {
@@ -19,6 +23,30 @@ export function EnvironmentsPanel() {
   const [diffOpen, setDiffOpen] = useState(false);
   const current = selected === 'globals' ? null : workspace.environments.find((e) => e.id === selected);
   const activeName = workspace.environments.find((e) => e.id === workspace.activeEnvironmentId)?.name;
+  const dotenvInput = useRef<HTMLInputElement>(null);
+
+  const importDotenv = (text: string, target: KV[], apply: (rows: KV[]) => void) => {
+    const parsed = parseDotenv(text);
+    if (parsed.length === 0) {
+      toast.error('No KEY=value lines found in that file');
+      return;
+    }
+    const next = [...target];
+    let added = 0;
+    let updated = 0;
+    for (const { key, value } of parsed) {
+      const idx = next.findIndex((r) => r.key === key);
+      if (idx === -1) {
+        next.push(kv({ key, value }));
+        added++;
+      } else {
+        next[idx] = { ...next[idx], value };
+        updated++;
+      }
+    }
+    apply(withTrailingBlank(next));
+    toast.success('Imported .env', `${added} added, ${updated} updated`);
+  };
 
   const removeEnvironment = async (id: string, name: string) => {
     if (!(await confirmAction(`Delete environment "${name}"? Its variables go with it.`, { okLabel: 'Delete', danger: true }))) return;
@@ -105,7 +133,12 @@ export function EnvironmentsPanel() {
       <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto border-t border-line p-3">
         {selected === 'globals' ? (
           <>
-            <p className="text-[11px] text-faint">Available in every workspace request — the weakest scope.</p>
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] text-faint">Available in every workspace request — the weakest scope.</p>
+              <Button size="sm" onClick={() => dotenvInput.current?.click()}>
+                <FileUp size={12} /> Import .env…
+              </Button>
+            </div>
             <div className="overflow-hidden rounded-md border border-line">
               <KVEditor rows={workspace.globals} onChange={setGlobals} showDescription secretToggle />
             </div>
@@ -127,6 +160,11 @@ export function EnvironmentsPanel() {
                 </Button>
               )}
             </div>
+            <div className="flex items-center justify-end">
+              <Button size="sm" onClick={() => dotenvInput.current?.click()}>
+                <FileUp size={12} /> Import .env…
+              </Button>
+            </div>
             <div className="overflow-hidden rounded-md border border-line">
               <KVEditor rows={current.variables} onChange={(variables) => updateEnvironment(current.id, { variables })} showDescription secretToggle />
             </div>
@@ -134,6 +172,23 @@ export function EnvironmentsPanel() {
         ) : (
           <p className="text-[12px] text-faint">Select or create an environment.</p>
         )}
+        <input
+          ref={dotenvInput}
+          type="file"
+          accept=".env,text/plain"
+          className="hidden"
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (!file) return;
+            const text = await file.text();
+            if (selected === 'globals') {
+              importDotenv(text, workspace.globals, setGlobals);
+            } else if (current) {
+              importDotenv(text, current.variables, (variables) => updateEnvironment(current.id, { variables }));
+            }
+          }}
+        />
       </div>
     </div>
   );

@@ -4,8 +4,11 @@ import { Modal } from '@/components/ui/Modal';
 import { Button, IconButton, Field, Input } from '@/components/ui/primitives';
 import { useActiveWorkspace, findCollection } from '@/store/workspaces';
 import { useRunner } from '@/store/runner';
+import { useRunHistory } from '@/store/runHistory';
 import { runCollection, targetsFor, type RunnerResult, type RunnerTarget } from '@/lib/runner';
+import { locate } from '@/lib/tree';
 import { parseCsv } from '@/lib/csv';
+import { uid } from '@/lib/factory';
 import { methodVar } from '@/lib/methodColor';
 import { saveFile } from '@/lib/saveFile';
 import { toast } from '@/lib/toast';
@@ -110,6 +113,7 @@ export function RunnerPanel() {
       return;
     }
     const controller = new AbortController();
+    const startedAt = Date.now();
     start(controller);
     try {
       await runCollection({
@@ -126,6 +130,41 @@ export function RunnerPanel() {
       toast.error('Run failed', (err as Error).message);
     } finally {
       finish();
+      // Read the store fresh rather than the closed-over `results` — it only
+      // reflects the render this function was created in, not what streamed
+      // in via `addResult` while the run was in flight.
+      const finalResults = useRunner.getState().results;
+      if (finalResults.length) {
+        const scoped = scopeNodeId ? locate(collection.items, scopeNodeId) : null;
+        const scopeName = scoped?.node.type === 'folder' ? scoped.node.name : null;
+        useRunHistory.getState().add({
+          id: uid(),
+          collectionId: collection.id,
+          collectionName: collection.name,
+          scopeName,
+          at: startedAt,
+          iterations,
+          durationMs: Date.now() - startedAt,
+          passed: finalResults.filter((r) => r.status === 'passed').length,
+          failed: finalResults.filter((r) => r.status === 'failed').length,
+          errored: finalResults.filter((r) => r.status === 'error').length,
+          results: finalResults.map((r) => ({
+            iteration: r.iteration,
+            name: r.name,
+            path: r.path,
+            method: r.method,
+            url: r.url,
+            // A saved run is always over by the time this runs — 'running' is
+            // only ever a live-UI state — but the type doesn't know that.
+            status: r.status === 'running' ? 'error' : r.status,
+            httpStatus: r.httpStatus,
+            durationMs: r.durationMs,
+            errorMessage: r.errorMessage,
+            testsPassed: r.tests.filter((t) => t.passed).length,
+            testsTotal: r.tests.length,
+          })),
+        });
+      }
     }
   };
 

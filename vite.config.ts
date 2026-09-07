@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -14,6 +15,11 @@ export default defineConfig({
     alias: { '@': path.resolve(root, 'src') },
   },
   server: { port: 5173, strictPort: true },
+  test: {
+    environment: 'jsdom',
+    globals: false,
+    css: false,
+  },
   build: {
     target: 'es2022',
     sourcemap: false,

@@ -198,6 +198,7 @@ export function RequestEditor({
             inheritedFrom={inheritedFromLabel}
             warning={null}
             canInherit={!!collection}
+            scope={scope}
           />
         )}
         {requestTab === 'scripts' && (

@@ -56,7 +56,10 @@ export function emptyAuth(type: AuthConfig['type'] = 'none'): AuthConfig {
       audience: '',
       username: '',
       password: '',
-      redirectUri: typeof location !== 'undefined' ? `${location.origin}/oauth/callback` : '',
+      // Fixed, not derived from `location` — the Authorization Code flow's
+      // loopback listener only ever binds this one port (see
+      // OAUTH_REDIRECT_URI in lib/oauth2.ts, which must match).
+      redirectUri: 'http://127.0.0.1:17872/callback',
       clientAuth: 'body',
     },
     custom: { header: '', value: '' },

@@ -15,7 +15,7 @@ export function HeadersTab({
   return (
     <div className="flex flex-col gap-4 p-3">
       <div className="overflow-hidden rounded-md border border-line">
-        <KVEditor rows={headers} onChange={onChange} showDescription resolve={resolve} />
+        <KVEditor rows={headers} onChange={onChange} showDescription bulkEdit resolve={resolve} />
       </div>
 
       {autoHeaders.length > 0 && (

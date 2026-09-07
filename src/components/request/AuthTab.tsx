@@ -1,9 +1,13 @@
-import { ScanSearch } from 'lucide-react';
+import { useState } from 'react';
+import { Check, Copy, KeyRound, RefreshCw, ScanSearch, X } from 'lucide-react';
 import type { AuthConfig, AuthType } from '@/types';
 import { AUTH_LABELS } from '@/lib/auth';
-import { Field, Select, Checkbox, Badge } from '@/components/ui/primitives';
+import { Field, Select, Checkbox, Badge, Button } from '@/components/ui/primitives';
 import { CodeEditor } from '@/components/ui/Editor';
 import { useTokenInspector } from '@/store/tokenInspector';
+import { fetchOAuthToken, refreshOAuthToken, cancelAuthorizationCode, OAUTH_REDIRECT_URI } from '@/lib/oauth2';
+import type { VarScope } from '@/lib/variables';
+import { toast } from '@/lib/toast';
 
 function InspectLink({ value }: { value: string }) {
   if (!value.trim()) return null;
@@ -26,14 +30,56 @@ export function AuthTab({
   inheritedFrom,
   warning,
   canInherit,
+  scope,
 }: {
   auth: AuthConfig;
   onChange: (auth: AuthConfig) => void;
   inheritedFrom: string | null;
   warning: string | null;
   canInherit: boolean;
+  /** Needed only to resolve {{variables}} when actually fetching an OAuth 2.0 token. */
+  scope?: VarScope;
 }) {
   const set = <K extends keyof AuthConfig>(key: K, value: AuthConfig[K]) => onChange({ ...auth, [key]: value });
+
+  const [tokenState, setTokenState] = useState<'idle' | 'waiting' | 'loading' | 'error'>('idle');
+  const [tokenError, setTokenError] = useState<string | null>(null);
+  const [redirectCopied, setRedirectCopied] = useState(false);
+
+  const getToken = async () => {
+    if (!auth.oauth2 || !scope) return;
+    setTokenState('loading');
+    setTokenError(null);
+    try {
+      const result = await fetchOAuthToken(auth.oauth2, scope, () => setTokenState('waiting'));
+      set('oauth2', { ...auth.oauth2, accessToken: result.accessToken, expiresAt: result.expiresAt ?? undefined, refreshToken: result.refreshToken ?? auth.oauth2.refreshToken });
+      setTokenState('idle');
+      toast.success('Token acquired', result.expiresAt ? `Expires ${new Date(result.expiresAt).toLocaleString()}` : 'No expiry given');
+    } catch (err) {
+      setTokenState('error');
+      setTokenError((err as Error).message);
+    }
+  };
+
+  const doRefresh = async () => {
+    if (!auth.oauth2 || !scope) return;
+    setTokenState('loading');
+    setTokenError(null);
+    try {
+      const result = await refreshOAuthToken(auth.oauth2, scope);
+      set('oauth2', { ...auth.oauth2, accessToken: result.accessToken, expiresAt: result.expiresAt ?? undefined, refreshToken: result.refreshToken ?? auth.oauth2.refreshToken });
+      setTokenState('idle');
+      toast.success('Token refreshed');
+    } catch (err) {
+      setTokenState('error');
+      setTokenError((err as Error).message);
+    }
+  };
+
+  const cancelWaiting = async () => {
+    await cancelAuthorizationCode();
+    setTokenState('idle');
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -192,6 +238,24 @@ export function AuthTab({
                 />
               </Field>
             </div>
+            {auth.oauth2.grantType === 'authorization_code_pkce' && (
+              <Field label="Redirect URI" hint="Register this exact URI with your OAuth app — kapi always listens on this fixed local port." className="max-w-lg">
+                <div className="flex h-8 items-center gap-1.5 rounded-md border border-line bg-surface-2 px-2.5 font-mono text-[12px] text-dim">
+                  <span className="min-w-0 flex-1 truncate">{OAUTH_REDIRECT_URI}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(OAUTH_REDIRECT_URI);
+                      setRedirectCopied(true);
+                      setTimeout(() => setRedirectCopied(false), 1200);
+                    }}
+                    className="shrink-0 text-faint hover:text-fg"
+                  >
+                    {redirectCopied ? <Check size={12} className="text-ok" /> : <Copy size={12} />}
+                  </button>
+                </div>
+              </Field>
+            )}
             <div className="grid max-w-lg grid-cols-2 gap-3">
               {auth.oauth2.grantType !== 'client_credentials' && (
                 <Field label="Auth URL">
@@ -221,6 +285,28 @@ export function AuthTab({
                 </>
               )}
             </div>
+            <div className="flex items-center gap-2">
+              <Button variant="primary" onClick={getToken} disabled={!scope || tokenState === 'loading' || tokenState === 'waiting'}>
+                <KeyRound size={13} />
+                {tokenState === 'waiting' ? 'Waiting for the browser…' : tokenState === 'loading' ? 'Requesting…' : 'Get new token'}
+              </Button>
+              {tokenState === 'waiting' && (
+                <Button variant="ghost" onClick={cancelWaiting}>
+                  <X size={13} /> Cancel
+                </Button>
+              )}
+              {!!auth.oauth2.refreshToken && tokenState === 'idle' && (
+                <Button onClick={doRefresh}>
+                  <RefreshCw size={13} /> Refresh
+                </Button>
+              )}
+              {!!auth.oauth2.expiresAt && (
+                <span className="text-[11px] text-faint">
+                  {auth.oauth2.expiresAt < Date.now() ? 'Expired' : `Expires ${new Date(auth.oauth2.expiresAt).toLocaleString()}`}
+                </span>
+              )}
+            </div>
+            {tokenError && <p className="max-w-lg text-[11px] text-danger">{tokenError}</p>}
             <p className="max-w-lg text-[11px] leading-relaxed text-faint">
               Token requests go out the same way as any other request in kapi — nothing about this exchange is
               stored; the token lives only in this request until you close the tab.

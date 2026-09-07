@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { AlertTriangle, Bot, Braces, Check, Copy, CornerDownLeft, FileText, Plus, Sparkles, Terminal, Trash2 } from 'lucide-react';
-import { Button, Checkbox, EmptyState } from '@/components/ui/primitives';
+import { Button, Checkbox, EmptyState, Segmented } from '@/components/ui/primitives';
 import { Thinking } from '@/components/ui/Thinking';
 import { useAiChat } from '@/store/aiChat';
-import { askClaude, claudeAvailable, isClaudeCliInstalled } from '@/lib/claudeCli';
+import { AI_CLI_LABELS, AI_CLI_SANDBOX_NOTE, aiCliFeatureAvailable, askAi, listAvailableAiClis, type AiCliName } from '@/lib/aiCli';
 import { extractAiRequest, extractScriptBlock, stripAiRequestBlock } from '@/lib/aiRequestParse';
 import { describeAiContext, type AiContextInput } from '@/lib/aiContext';
 import { useSession, useActiveTab } from '@/store/session';
@@ -38,36 +38,44 @@ export function AiPanel() {
   const run = useTabRun(activeTab?.id ?? '');
 
   const [draft, setDraft] = useState('');
-  const [installed, setInstalled] = useState<boolean | null>(null);
+  const [availableClis, setAvailableClis] = useState<AiCliName[] | null>(null);
+  const [selectedCli, setSelectedCli] = useState<AiCliName | null>(null);
   const [attachContext, setAttachContext] = useState(true);
   const logRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    isClaudeCliInstalled().then(setInstalled);
+    listAvailableAiClis().then((clis) => {
+      setAvailableClis(clis);
+      setSelectedCli((prev) => prev ?? clis[0] ?? null);
+    });
   }, []);
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages.length, loading]);
 
-  if (!claudeAvailable()) {
+  if (!aiCliFeatureAvailable()) {
     return (
       <EmptyState
         icon={<Bot size={22} />}
         title="The AI tab needs the desktop app"
-        detail="Shelling out to the claude CLI isn't possible from a plain browser tab."
+        detail="Shelling out to a local AI CLI isn't possible from a plain browser tab."
       />
     );
   }
 
-  if (installed === false) {
+  if (availableClis && availableClis.length === 0) {
     return (
       <EmptyState
         icon={<Terminal size={22} />}
-        title="claude CLI not found"
-        detail="This tab asks your own claude CLI to help draft requests — install Claude Code (npm install -g @anthropic-ai/claude-code, or see claude.com/code) and sign in, then reopen this tab."
+        title="No AI CLI found"
+        detail="This tab asks a CLI you've already installed and signed into to help draft requests — never your credentials, kapi just shells out to it. Install one and reopen this tab: Claude Code (claude.com/code), Codex (npm install -g @openai/codex), or Gemini CLI (npm install -g @google/gemini-cli)."
       />
     );
+  }
+
+  if (!selectedCli) {
+    return <EmptyState icon={<Terminal size={22} />} title="Checking for an AI CLI…" />;
   }
 
   const canAttach = !!activeTab && activeTab.kind === 'http';
@@ -91,16 +99,16 @@ export function AiPanel() {
 
   const ask = async (text: string) => {
     const trimmed = text.trim();
-    if (!trimmed || loading) return;
+    if (!trimmed || loading || !selectedCli) return;
     setDraft('');
     const history = [...messages, { role: 'user' as const, text: trimmed }];
     addMessage({ role: 'user', text: trimmed });
     setLoading(true);
     try {
-      const reply = await askClaude(history, buildContext());
+      const reply = await askAi(selectedCli, history, buildContext());
       addMessage({ role: 'assistant', text: reply });
     } catch (err) {
-      toast.error('claude CLI failed', (err as Error).message);
+      toast.error(`${AI_CLI_LABELS[selectedCli]} CLI failed`, (err as Error).message);
       addMessage({ role: 'assistant', text: `_Error: ${(err as Error).message}_` });
     } finally {
       setLoading(false);
@@ -152,9 +160,16 @@ export function AiPanel() {
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-line px-2.5 py-1.5">
         <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-faint">
-          <Sparkles size={11} className={loading ? 'text-accent' : undefined} /> Ask Claude
+          <Sparkles size={11} className={loading ? 'text-accent' : undefined} /> Ask {AI_CLI_LABELS[selectedCli]}
         </span>
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-1.5">
+          {availableClis && availableClis.length > 1 && (
+            <Segmented
+              value={selectedCli}
+              onChange={setSelectedCli}
+              options={availableClis.map((cli) => ({ value: cli, label: AI_CLI_LABELS[cli] }))}
+            />
+          )}
           <Button size="sm" onClick={() => openTab()}>
             <Plus size={11} /> New tab
           </Button>
@@ -165,6 +180,11 @@ export function AiPanel() {
           )}
         </div>
       </div>
+      {AI_CLI_SANDBOX_NOTE[selectedCli] && (
+        <p className="border-b border-line bg-warn/10 px-2.5 py-1 text-[10.5px] leading-snug text-warn">
+          {AI_CLI_SANDBOX_NOTE[selectedCli]}
+        </p>
+      )}
 
       {/* Always-present strip, so the panel still reads as working when the
           newest turn has scrolled out of view. */}
@@ -176,7 +196,7 @@ export function AiPanel() {
             <EmptyState
               icon={<Bot size={22} />}
               title="Describe the request you want"
-              detail="Claude replies with a ready-to-send request you can drop straight into a collection. Pasting a curl command works too."
+              detail={`${AI_CLI_LABELS[selectedCli]} replies with a ready-to-send request you can drop straight into a collection. Pasting a curl command works too.`}
             />
             <div className="flex flex-col gap-1.5">
               {STARTERS.map((starter, i) => (
@@ -203,7 +223,7 @@ export function AiPanel() {
                   <span className="h-1.5 w-1.5 rounded-full bg-accent" />
                   <span className="h-1.5 w-1.5 rounded-full bg-accent" />
                 </span>
-                <Thinking label="Claude is thinking…" />
+                <Thinking label={`${AI_CLI_LABELS[selectedCli]} is thinking…`} />
               </div>
             )}
           </div>
@@ -246,7 +266,7 @@ export function AiPanel() {
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder={loading ? 'Claude is still replying — you can keep typing…' : 'Describe the API call you want…'}
+            placeholder={loading ? `${AI_CLI_LABELS[selectedCli]} is still replying — you can keep typing…` : 'Describe the API call you want…'}
             rows={2}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) ask(draft);
@@ -257,7 +277,7 @@ export function AiPanel() {
             <CornerDownLeft size={12} /> Send
           </Button>
         </div>
-        <p className="mt-1.5 px-1 text-[10.5px] text-faint">⌘↵ to send · runs through your own claude CLI</p>
+        <p className="mt-1.5 px-1 text-[10.5px] text-faint">⌘↵ to send · runs through your own {AI_CLI_LABELS[selectedCli].toLowerCase()} CLI</p>
       </div>
     </div>
   );

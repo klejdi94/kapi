@@ -1,13 +1,19 @@
 use std::fs;
 use std::path::Path;
 
+mod ai_cli;
 mod appmenu;
 mod claude_cli;
 mod discovery;
 mod mock;
+mod mtls;
+mod oauth;
+use ai_cli::{kapi_ai_list_available, kapi_ai_prompt};
 use claude_cli::{kapi_claude_available, kapi_claude_prompt};
 use discovery::{kapi_discovery_report, kapi_open_discovery};
 use mock::{kapi_mock_is_running, kapi_mock_start, kapi_mock_stop, MockState};
+use mtls::kapi_send_mtls;
+use oauth::{kapi_oauth_cancel, kapi_oauth_listen, OAuthListenState};
 
 /// Reads and writes the workspace snapshot file directly, rather than through
 /// the fs plugin's ACL scope: the path always comes from the OS's own native
@@ -50,7 +56,10 @@ pub fn run() {
     .plugin(tauri_plugin_shell::init())
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_websocket::init())
+    .plugin(tauri_plugin_updater::Builder::new().build())
+    .plugin(tauri_plugin_process::init())
     .manage(MockState::default())
+    .manage(OAuthListenState::default())
     .invoke_handler(tauri::generate_handler![
       kapi_write_text_file,
       kapi_write_binary_file,
@@ -62,7 +71,12 @@ pub fn run() {
       kapi_claude_prompt,
       kapi_claude_available,
       kapi_open_discovery,
-      kapi_discovery_report
+      kapi_discovery_report,
+      kapi_oauth_listen,
+      kapi_oauth_cancel,
+      kapi_send_mtls,
+      kapi_ai_list_available,
+      kapi_ai_prompt
     ])
     .on_menu_event(|app, event| {
       appmenu::handle_event(app, event.id().as_ref());

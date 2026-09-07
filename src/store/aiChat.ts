@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ChatTurn } from '@/lib/claudeCli';
+import type { ChatTurn } from '@/lib/aiCli';
 
 interface AiChatState {
   messages: ChatTurn[];

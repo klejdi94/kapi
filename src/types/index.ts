@@ -85,7 +85,8 @@ export interface BodyConfig {
   graphql: { query: string; variables: string };
   formData: KV[];
   urlencoded: KV[];
-  binary: { fileName: string } | null;
+  /** `id` keys the in-memory file store (see `lib/files.ts`) — per-request so two tabs with a binary body never share bytes. Optional only for data saved before this field existed. */
+  binary: { fileName: string; id?: string } | null;
 }
 
 export interface RequestSettings {
@@ -93,6 +94,14 @@ export interface RequestSettings {
   timeoutMs: number;
   /** Turn off kapi's automatic Content-Type / Accept headers. */
   autoHeaders: boolean;
+  /** `http://` or `socks5://` proxy for this request; empty/unset means none. */
+  proxyUrl?: string;
+  /** Skips certificate chain/hostname validation — for a self-signed or internal CA without importing it. */
+  insecureSkipTlsVerify?: boolean;
+  /** PEM-encoded client certificate, its private key, and (optionally) a custom CA bundle — mutual TLS. Setting cert+key routes this request through a dedicated client instead of kapi's normal path; multipart form-data bodies aren't supported over it yet. */
+  clientCertPem?: string;
+  clientKeyPem?: string;
+  caCertPem?: string;
 }
 
 export interface RequestDef {
@@ -330,5 +339,36 @@ export interface HistoryEntry {
   request: RequestDef;
 }
 
-export type ResponseView = 'pretty' | 'tree' | 'raw' | 'preview' | 'headers' | 'cookies' | 'timings' | 'tests';
+/** One request's outcome within a saved collection run — no live response, just enough to spot a regression later. */
+export interface RunHistoryResult {
+  iteration: number;
+  name: string;
+  path: string[];
+  method: string;
+  url: string;
+  status: 'passed' | 'failed' | 'error';
+  httpStatus: number | null;
+  durationMs: number;
+  errorMessage: string | null;
+  testsPassed: number;
+  testsTotal: number;
+}
+
+/** One full "Run collection" execution, saved so past runs of the same collection can be compared over time. */
+export interface RunHistoryEntry {
+  id: string;
+  collectionId: string;
+  collectionName: string;
+  /** The folder name when the run was scoped to one, else null for the whole collection. */
+  scopeName: string | null;
+  at: number;
+  iterations: number;
+  durationMs: number;
+  passed: number;
+  failed: number;
+  errored: number;
+  results: RunHistoryResult[];
+}
+
+export type ResponseView = 'pretty' | 'tree' | 'raw' | 'preview' | 'headers' | 'cookies' | 'timings' | 'tests' | 'stream';
 export type RequestTabKey = 'params' | 'body' | 'headers' | 'auth' | 'scripts' | 'docs' | 'settings';

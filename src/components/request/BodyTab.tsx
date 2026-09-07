@@ -5,7 +5,8 @@ import { KVEditor } from '@/components/ui/KVEditor';
 import { Button, Select } from '@/components/ui/primitives';
 import { beautify, languageFor, minifyJson, prettyJson } from '@/lib/format';
 import { useRef, useState } from 'react';
-import { getFile, putFile } from '@/lib/files';
+import { getFile, putFile, dropFile } from '@/lib/files';
+import { uid } from '@/lib/factory';
 import { BookOpen, FileUp, Sparkles } from 'lucide-react';
 import clsx from 'clsx';
 import type { GraphQLSchemaSummary } from '@/lib/graphqlIntrospection';
@@ -165,7 +166,7 @@ export function BodyTab({
               <FileUp size={22} />
               <span className="text-[12.5px] font-medium">{body.binary?.fileName || 'Choose a file'}</span>
             </button>
-            {body.binary?.fileName && !getFile('binary') && (
+            {body.binary?.fileName && !(body.binary.id && getFile(body.binary.id)) && (
               <p className="text-[11.5px] text-warn">This file isn't attached in memory anymore — choose it again to send it.</p>
             )}
             <input
@@ -175,8 +176,10 @@ export function BodyTab({
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
-                putFile('binary', file);
-                onChange({ ...body, binary: { fileName: file.name } });
+                if (body.binary?.id) dropFile(body.binary.id);
+                const id = uid();
+                putFile(id, file);
+                onChange({ ...body, binary: { fileName: file.name, id } });
               }}
             />
           </div>

@@ -33,7 +33,7 @@ export function ParamsTab({
       <section>
         <h3 className="mb-2 px-0.5 text-[11px] font-semibold uppercase tracking-wider text-faint">Query params</h3>
         <div className="overflow-hidden rounded-md border border-line">
-          <KVEditor rows={params} onChange={onParams} showDescription resolve={resolve} />
+          <KVEditor rows={params} onChange={onParams} showDescription bulkEdit resolve={resolve} />
         </div>
       </section>
 

@@ -1,11 +1,12 @@
 import { useRef, useState } from 'react';
-import { Copy, Eye, EyeOff, FileUp, Lock, Trash2 } from 'lucide-react';
+import { Copy, Eye, EyeOff, FileUp, Lock, Trash2, Code2 } from 'lucide-react';
 import type { KV } from '@/types';
 import { kv, withTrailingBlank } from '@/lib/factory';
 import { variableSpans } from '@/lib/variables';
-import { IconButton } from './primitives';
+import { IconButton, Button } from './primitives';
 import { putFile, dropFile, getFile } from '@/lib/files';
 import { COMMON_CONTENT_TYPES } from '@/lib/format';
+import { kvRowsToBulkText, bulkTextToKvRows } from '@/lib/kvBulk';
 
 /**
  * The params/headers/form-data/urlencoded/variables grid used everywhere in
@@ -20,6 +21,7 @@ export function KVEditor({
   showDescription = false,
   allowFiles = false,
   secretToggle = false,
+  bulkEdit = false,
   disabledHint,
   resolve,
 }: {
@@ -31,10 +33,15 @@ export function KVEditor({
   allowFiles?: boolean;
   /** Variable grids only — lets a row be marked secret (masked value, excluded from AI context). */
   secretToggle?: boolean;
+  /** Adds a "Bulk edit" toggle that swaps the grid for a `key: value`-per-line textarea. */
+  bulkEdit?: boolean;
   disabledHint?: (row: KV) => string | undefined;
   /** Optional live-preview resolver so {{vars}} show their value on hover. */
   resolve?: (text: string) => string;
 }) {
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkText, setBulkText] = useState('');
+
   const commit = (next: KV[]) => onChange(withTrailingBlank(next));
 
   const update = (id: string, patch: Partial<KV>) => commit(rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -45,12 +52,61 @@ export function KVEditor({
 
   const cols = showDescription ? 'grid-cols-[20px_1fr_1fr_1fr_28px]' : 'grid-cols-[20px_1fr_1fr_28px]';
 
+  const openBulkEdit = () => {
+    setBulkText(kvRowsToBulkText(rows));
+    setBulkMode(true);
+  };
+  const applyBulkEdit = () => {
+    commit(bulkTextToKvRows(bulkText, rows));
+    setBulkMode(false);
+  };
+
+  if (bulkEdit && bulkMode) {
+    return (
+      <div className="flex flex-col gap-2">
+        <textarea
+          autoFocus
+          value={bulkText}
+          onChange={(e) => setBulkText(e.target.value)}
+          placeholder={`${keyPlaceholder}: ${valuePlaceholder}\n// disabled-row: value`}
+          rows={Math.max(6, bulkText.split('\n').length + 1)}
+          className="w-full resize-y rounded-md border border-line bg-surface p-2 font-mono text-[12px] text-fg placeholder:text-faint focus:outline-none focus:ring-1 focus:ring-accent"
+        />
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] text-faint">
+            One <code className="text-dim">key: value</code> per line — prefix with <code className="text-dim">//</code> to disable a row.
+          </p>
+          <div className="flex gap-1.5">
+            <Button size="sm" onClick={() => setBulkMode(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" variant="primary" onClick={applyBulkEdit}>
+              Apply
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col">
       <div className={`grid ${cols} gap-px border-b border-line bg-line px-0 pb-px text-[10.5px] font-medium uppercase tracking-wider text-faint`}>
         <div className="bg-bg py-1.5" />
         <div className="bg-bg py-1.5 pl-1">Key</div>
-        <div className="bg-bg py-1.5 pl-1">Value</div>
+        <div className="flex items-center justify-between bg-bg py-1.5 pl-1 pr-1">
+          <span>Value</span>
+          {bulkEdit && (
+            <button
+              onClick={openBulkEdit}
+              title="Edit as text"
+              className="flex items-center gap-1 normal-case tracking-normal text-faint hover:text-fg"
+            >
+              <Code2 size={11} />
+              Bulk edit
+            </button>
+          )}
+        </div>
         {showDescription && <div className="bg-bg py-1.5 pl-1">Description</div>}
         <div className="bg-bg py-1.5" />
       </div>

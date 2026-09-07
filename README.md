@@ -1,124 +1,258 @@
-# kapi
+<h1 align="center">kapi</h1>
 
-**A Postman-grade API client that keeps its mouth shut.**
+<p align="center"><strong>A Postman-grade API client that keeps its mouth shut.</strong></p>
 
-No account. No sync. No telemetry. No server anywhere in the loop. Your workspaces, collections,
-environments, secrets and history are files on your own disk — and requests leave through your
-operating system's networking stack, not a browser, so there is no CORS to fight and no proxy
-sitting between you and the API.
+<p align="center">
+No account. No sync. No telemetry. No server anywhere in the loop.<br>
+Your workspaces, collections, environments, secrets and history are files on <em>your</em> disk.
+</p>
 
-<p>
+<p align="center">
   <a href="https://github.com/klejdi94/kapi/releases/latest">
     <img alt="Download for macOS" src="https://img.shields.io/badge/Download-macOS-8b7cff?style=for-the-badge&logo=apple&logoColor=white">
   </a>
   <a href="https://github.com/klejdi94/kapi/releases/latest">
     <img alt="Download for Windows" src="https://img.shields.io/badge/Download-Windows-2f81f7?style=for-the-badge&logo=windows&logoColor=white">
   </a>
+  <a href="https://github.com/klejdi94/kapi/releases/latest">
+    <img alt="Download for Linux" src="https://img.shields.io/badge/Download-Linux-e78e35?style=for-the-badge&logo=linux&logoColor=white">
+  </a>
+  <br>
+  <img alt="Version" src="https://img.shields.io/github/v/release/klejdi94/kapi?style=flat-square&color=8b7cff">
+  <img alt="Platforms" src="https://img.shields.io/badge/macOS%20%7C%20Windows%20%7C%20Linux-native-2f81f7?style=flat-square">
+  <img alt="Telemetry" src="https://img.shields.io/badge/telemetry-none-2ea043?style=flat-square">
 </p>
 
-macOS (Apple Silicon and Intel) and Windows x64. Every build lives on the
-[Releases](https://github.com/klejdi94/kapi/releases) page.
+<p align="center">
+  <img alt="kapi — a request and its response" src="docs/screenshots/request-response.jpg" width="900">
+</p>
 
-### Opening an unsigned build
+---
 
-kapi is not signed with a paid Apple Developer certificate, so both systems will
-question it on first launch.
+## Why another API client?
 
-**macOS** — open the `.dmg`, drag kapi to Applications, then right-click the app
-and choose **Open** (once; double-clicking is refused). If macOS instead claims
-the app *"is damaged and can't be opened"*, it is not — that message means the
-download carries a quarantine flag. Clear it and open normally:
+Because the good ones went to the cloud and took your requests with them.
 
-```
-xattr -cr /Applications/kapi.app
-```
+- **Requests leave through your OS, not a browser.** No CORS to fight, no proxy in the middle — the
+  same reach `curl` has.
+- **Nothing is uploaded, ever.** Not your collections, not your tokens, not a usage ping. Everything
+  lives in plain JSON files in your app data directory, which you can read, diff and back up.
+- **Your AI, your account.** Ask Claude, Codex or Gemini — kapi shells out to whichever CLI you
+  already have installed and signed in (picks automatically, lets you choose if more than one is
+  around). No API key to paste, no extra subscription, nothing routed through us.
+- **It starts instantly and stays out of the way.** A native window, not a browser pretending.
 
-**Windows** — SmartScreen shows a warning: choose **More info → Run anyway**.
+---
+
+## Highlights
+
+### Everything about a collection in one page
+
+Default auth and headers every request inherits, variables (with a **secret** toggle that also keeps
+them out of anything sent to the AI), collection-wide scripts, and docs — no hunting through modals.
+
+<p align="center">
+  <img alt="Collection overview page" src="docs/screenshots/collection-overview.jpg" width="880">
+</p>
+
+### Run the whole thing
+
+A collection or a single folder, for N iterations, optionally driven by a CSV data file — through the
+exact pre-request → send → test pipeline a manual send uses, so a login request's token really does
+carry into the requests after it. Every run is kept in a history you can revisit later, and results
+export as JSON. The same pipeline runs headless from a terminal or CI — see below.
+
+<p align="center">
+  <img alt="Collection runner results" src="docs/screenshots/collection-runner.jpg" width="880">
+</p>
+
+### Docs that write themselves
+
+Markdown notes per request roll up into one document per collection — exportable as Markdown or
+OpenAPI 3.0, ready to hand to anything that reads either.
+
+<p align="center">
+  <img alt="Generated collection docs" src="docs/screenshots/collection-docs.jpg" width="880">
+</p>
 
 ---
 
 ## What you get
 
-**Every request you actually send.** All HTTP methods plus custom verbs. Bearer, Basic, API key, JWT
-(signed locally), OAuth 2.0 and raw custom auth. JSON, XML, HTML, text, GraphQL, form-data with real
-file uploads, urlencoded, and raw binary bodies. WebSocket connections with a live frame log.
+<table>
+<tr><td width="50%" valign="top">
 
-**Responses you can actually read.** Pretty-printed and syntax-highlighted, a collapsible JSON tree,
-raw bytes, a real preview for HTML, images, audio, video and PDFs, parsed cookies, header tables, and
-a timing breakdown. Save any response as a named example and replay it later.
+**Every request you actually send**
+All HTTP methods plus custom verbs. Bearer, Basic, API key, JWT (signed locally), a real OAuth 2.0
+flow (opens your browser, PKCE included), raw custom auth. JSON, XML, HTML, text, GraphQL, form-data
+with real file uploads, urlencoded, binary — even over a client certificate. Mutual TLS, a custom CA,
+an HTTP/SOCKS proxy, `text/event-stream` responses rendered live as they arrive, and WebSocket
+connections with a live frame log.
 
-**Organization that scales.** Workspaces → collections → nested folders → requests, with drag-and-drop,
-multi-select, pinned favourites and tabs, inherited auth/headers/variables, and `{{variables}}` resolved
-across environments, collection scope and globals. Every collection gets its own page — default auth and
-headers, variables (with a secret toggle that keeps them out of the AI's context), scripts and generated
-docs, all in one place.
+</td><td width="50%" valign="top">
 
-**Scripting, the Postman way.** Pre-request and test scripts with a `pm` API you already know — per
-request *and* per collection, running in that order. Assertions show up in a Tests panel; `console.log`
-and script errors land in the Console.
+**Responses you can actually read**
+Pretty-printed and highlighted, a collapsible JSON tree, raw bytes, real previews for HTML, images,
+audio, video and PDFs, parsed cookies, header tables, timing breakdown. Save any response as a named
+example — then diff a later response against it.
 
-**An AI that sees what you see.** Claude answers with the request and response you have open already
-attached — "why did this fail?", "write a pre-request script for this" — and writes `pm.test(...)`
-assertions from a real response. It shells out to your own `claude` CLI — no API key, no extra
-subscription, nothing sent to us.
+</td></tr>
+<tr><td width="50%" valign="top">
 
-**Run a whole collection.** N iterations, an optional CSV data file, the exact pre-request → send → test
-pipeline a manual send uses — so a login request's token really does carry into the ones after it. Live
-pass/fail as it runs, results exportable as JSON.
+**Organization that scales**
+Workspaces → collections → nested folders → requests. Drag-and-drop, multi-select, pinned favourites
+and pinned tabs, inherited auth/headers/variables, `{{variables}}` resolved across environments,
+collection scope and globals — with a diff view for comparing two environments.
 
-**Discover an API by browsing it.** Point kapi at a site and it opens it in its own window — your real
-session, your real cookies — and quietly watches the calls it makes while you click around. Turn what it
-finds into a real collection, secrets swapped for `{{variables}}` instead of saved as plaintext. Or skip
-the clicking: kapi checks the usual `/openapi.json` / `/swagger.json` paths first.
+</td><td width="50%" valign="top">
 
-**Docs that write themselves.** Markdown notes per request, rolled up into one document per collection —
-export it as Markdown or OpenAPI 3.0, or hand the whole collection to any tool that reads either.
+**Scripting, the Postman way**
+Pre-request and test scripts with the `pm` API you already know, per request *and* per collection,
+running in that order. Assertions land in a Tests panel; `console.log` and errors land in the Console.
 
-**A local mock server.** Turn any collection into a running HTTP server on localhost with per-route
-status, headers, body and latency, then watch the hits stream into the console.
+</td></tr>
+<tr><td width="50%" valign="top">
 
-**Git-backed workspaces.** Point a workspace at a folder and kapi keeps a clean JSON snapshot in it,
-with a built-in diff view, commit, push and pull. Review API changes in a pull request like code.
-Secrets stay out of the snapshot.
+**An AI that sees what you see**
+Claude, Codex or Gemini — whichever you have installed — answers with the request and response you
+have open already attached — *"why did this fail?"*, *"write a pre-request script for this"* — and
+writes `pm.test(...)` assertions from a real response. Generated scripts drop straight into the
+request.
 
-**Import and export everything.** Postman v2.1 collections and environments, OpenAPI 3.x / Swagger 2
-(JSON or YAML, auto-organized into folders by tag), HAR, Insomnia, and plain cURL — paste a cURL
-command straight into the URL bar and it expands into a full request. Export to Postman, OpenAPI 3.0,
-Markdown docs, HAR, or generate ready-to-run code in a dozen languages.
+</td><td width="50%" valign="top">
 
-**A console that shows the whole truth.** Every request, response, WebSocket frame, mock hit and
-script log, with full headers and bodies.
+**Discover an API by browsing it**
+Point kapi at a site; it opens in its own window with your real session and quietly watches the calls
+it makes while you click around. What it finds becomes a collection — paths templated, duplicates
+merged, secrets swapped for `{{variables}}`. Or skip it: kapi probes `/openapi.json` first.
+
+</td></tr>
+<tr><td width="50%" valign="top">
+
+**A browser-grade cookie jar**
+`Set-Cookie` responses are captured and sent back automatically to matching hosts — for manual sends
+*and* runner executions — with a panel to inspect or clear them.
+
+</td><td width="50%" valign="top">
+
+**GraphQL that knows the schema**
+Fetch a schema by introspection, browse its queries and mutations, insert a starter query with a
+click — authenticated the same way the real calls are.
+
+</td></tr>
+<tr><td width="50%" valign="top">
+
+**A local mock server**
+Turn any collection into a running HTTP server on localhost with per-route status, headers, body and
+latency, then watch the hits stream into the console.
+
+</td><td width="50%" valign="top">
+
+**Git-backed workspaces**
+Point a workspace at a folder and kapi keeps a clean JSON snapshot in it, with a built-in diff view,
+commit, push and pull. Review API changes in a pull request like code. Secrets stay out of the snapshot.
+
+</td></tr>
+<tr><td width="50%" valign="top">
+
+**Import and export everything**
+Postman v2.1, OpenAPI 3.x / Swagger 2 (JSON or YAML, auto-foldered by tag), HAR, Insomnia, plain cURL —
+paste a curl command into the URL bar and it expands into a full request. Export to Postman, OpenAPI
+3.0, Markdown docs or HAR, or generate ready-to-run code in a dozen languages.
+
+</td><td width="50%" valign="top">
+
+**Small things that add up**
+Autosave on every edit. A JWT/SAML inspector. Save any response value as a variable in one click.
+Edit headers or query params as plain text when a grid is slower than typing, and import a `.env`
+file straight into an environment. ⌘K command palette. Update in place from inside the app instead
+of a fresh download. A console that shows the whole truth — every request, response, WebSocket
+frame, mock hit and script log, with full headers and bodies.
+
+</td></tr>
+</table>
+
+---
+
+## Run collections from a terminal or CI
+
+The same pre-request → send → test pipeline the GUI's "Run collection" uses, headless — no window,
+no app instance, just Node reading the files kapi already exports:
+
+```bash
+git clone https://github.com/klejdi94/kapi.git && cd kapi && npm install
+npm run cli -- run my-collection.kapi.json --env staging.json --iterations 5 --data users.csv
+```
+
+Takes a kapi-native (`.kapi.json`) or Postman v2.1 collection export, an optional kapi or Postman
+environment export, and an optional CSV data file (one row per iteration, same as the GUI runner).
+Exits `0` only when every request's tests passed and none errored — `1` on a test failure, `2` on a
+usage/config problem — so it drops straight into a CI step. `--json` prints one JSON object instead
+of the human-readable summary. `--folder <name>` scopes the run the same way right-clicking a folder
+does in the app.
+
+---
+
+## Install
+
+Grab the latest build for **macOS** (Apple Silicon or Intel), **Windows x64**, or **Linux** (AppImage
+or `.deb`) from the [Releases](https://github.com/klejdi94/kapi/releases/latest) page. kapi checks
+for updates on launch and can fetch and install a new one in place — see **Check for Updates…** in
+the Help menu.
+
+<details>
+<summary><strong>First launch on an unsigned build</strong></summary>
+
+<br>
+
+kapi isn't signed with a paid Apple Developer certificate, so both systems question it once.
+
+**macOS** — open the `.dmg`, drag kapi to Applications, then right-click the app and choose **Open**
+(double-clicking is refused the first time). If macOS instead claims the app *"is damaged and can't be
+opened"*, it isn't — that message means the download carries a quarantine flag:
+
+```
+xattr -cr /Applications/kapi.app
+```
+
+**Windows** — SmartScreen shows a warning: **More info → Run anyway**.
+
+</details>
 
 ---
 
 ## Develop
 
-```
+```bash
 npm install
-npm run desktop:dev
+npm run desktop:dev     # native window + Vite dev server, hot reload
 ```
-
-Opens the app in a native window backed by the Vite dev server, with hot reload.
 
 `npm run dev` (plain Vite in a browser tab) is fine for fast UI iteration, but requests to other
 origins hit normal browser CORS restrictions there — only the desktop shell bypasses them.
 
-## Build locally
-
+```bash
+npm run desktop:build   # bundle into src-tauri/target/release/bundle/
+npx tsc --noEmit        # typecheck
+npm test                # vitest — pure-logic modules and stores
 ```
-npm run desktop:build
+
+On macOS, building the `.dmg` needs `hdiutil` to mount a disk image, which some sandboxed shells
+block — if that step fails the `.app` itself is still valid, or you can let CI build it.
+
+Every push and pull request runs typecheck, tests and a frontend build, plus `cargo check` for the
+Rust side.
+
+**Releases.** Pushing a tag builds macOS (Apple Silicon + Intel), Windows, and Linux installers on
+GitHub's runners and attaches them to a draft release:
+
+```bash
+git tag v0.3.0 && git push origin v0.3.0
 ```
 
-Produces a bundle under `src-tauri/target/release/bundle/`. On macOS, building the `.dmg` needs
-`hdiutil` to mount a disk image, which some sandboxed shells block — if that step fails the `.app`
-itself is still valid, or you can let CI build it.
+---
 
-## Release builds
+## Stack
 
-Pushing a tag builds macOS (Apple Silicon + Intel) and Windows installers on GitHub's own runners and
-attaches them to a draft release:
-
-```
-git tag v0.2.1
-git push origin v0.2.1
-```
+[Tauri 2](https://v2.tauri.app) (Rust shell, native HTTP) · React 19 · TypeScript · Vite · Tailwind ·
+Zustand · CodeMirror 6. No backend, because there is nothing to put on one.

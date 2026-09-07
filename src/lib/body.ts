@@ -162,7 +162,7 @@ export function buildBody(request: RequestDef, scope: VarScope): BuiltBody {
 
     case 'binary': {
       if (!body.binary) return empty;
-      const file = getFile('binary');
+      const file = body.binary.id ? getFile(body.binary.id) : undefined;
       if (!file) return { ...empty, missingFiles: [body.binary.fileName] };
       return {
         payload: file,

@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "0.2.2"
+version = "0.3.0"
 description = "A Tauri App"
 authors = ["you"]
 license = ""
@@ -29,4 +29,12 @@ tauri-plugin-http = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-websocket = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 tiny_http = "0.12.0"
+# Direct dependency only for mutual-TLS: plugin-http's fetch() has no client-
+# certificate option, so that one case bypasses it for a dedicated reqwest
+# client instead. rustls-tls (not native-tls) so `Identity::from_pem` can take
+# a plain cert+key PEM bundle, same version reqwest is already pinned to
+# transitively — Cargo unifies them rather than linking two TLS stacks.
+reqwest = { version = "0.12.28", default-features = false, features = ["blocking", "rustls-tls", "multipart"] }

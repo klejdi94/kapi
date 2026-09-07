@@ -4,9 +4,10 @@ import type { Collection, FolderNode } from '@/types';
 import { Segmented, Button } from '@/components/ui/primitives';
 import { AuthTab } from '@/components/request/AuthTab';
 import { HeadersTab } from '@/components/request/HeadersTab';
-import { useWorkspaces } from '@/store/workspaces';
+import { useActiveWorkspace, useWorkspaces } from '@/store/workspaces';
 import { useRunner } from '@/store/runner';
 import { countByType } from '@/lib/tree';
+import { buildScope } from '@/lib/variables';
 
 type DetailTab = 'overview' | 'auth' | 'headers';
 
@@ -16,7 +17,9 @@ type DetailTab = 'overview' | 'auth' | 'headers';
  * everything under it, neither of which had any UI before this.
  */
 export function FolderDetailPage({ collection, folder }: { collection: Collection; folder: FolderNode }) {
+  const workspace = useActiveWorkspace();
   const updateNode = useWorkspaces((s) => s.updateNode);
+  const scope = buildScope(workspace, collection);
   const [tab, setTab] = useState<DetailTab>('overview');
 
   const { requests: requestCount, folders: folderCount, websockets: wsCount } = countByType(folder.items);
@@ -85,6 +88,7 @@ export function FolderDetailPage({ collection, folder }: { collection: Collectio
             inheritedFrom={`collection "${collection.name}"`}
             warning={null}
             canInherit
+            scope={scope}
           />
         )}
 

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { RunResult } from '@/types';
+import type { SseEvent } from '@/lib/sse';
 
 /**
  * Responses are deliberately never persisted — they hold live Blobs, and the
@@ -11,9 +12,11 @@ export interface TabRunState {
   startedAt: number;
   result: RunResult | null;
   controller: AbortController | null;
+  /** Filled live as a `text/event-stream` response arrives — empty for every other response. */
+  sseEvents: SseEvent[];
 }
 
-const IDLE: TabRunState = { loading: false, startedAt: 0, result: null, controller: null };
+const IDLE: TabRunState = { loading: false, startedAt: 0, result: null, controller: null, sseEvents: [] };
 
 interface ResponseState {
   byTab: Record<string, TabRunState>;
@@ -22,13 +25,14 @@ interface ResponseState {
   cancel: (tabId: string) => void;
   clear: (tabId: string) => void;
   setResult: (tabId: string, result: RunResult) => void;
+  appendSseEvent: (tabId: string, event: SseEvent) => void;
 }
 
 export const useResponses = create<ResponseState>()((set, get) => ({
   byTab: {},
   begin: (tabId, controller) =>
     set((state) => ({
-      byTab: { ...state.byTab, [tabId]: { loading: true, startedAt: performance.now(), result: null, controller } },
+      byTab: { ...state.byTab, [tabId]: { loading: true, startedAt: performance.now(), result: null, controller, sseEvents: [] } },
     })),
   finish: (tabId, result) =>
     set((state) => ({
@@ -47,6 +51,11 @@ export const useResponses = create<ResponseState>()((set, get) => ({
     set((state) => ({
       byTab: { ...state.byTab, [tabId]: { ...(state.byTab[tabId] ?? IDLE), loading: false, result } },
     })),
+  appendSseEvent: (tabId, event) =>
+    set((state) => {
+      const current = state.byTab[tabId] ?? IDLE;
+      return { byTab: { ...state.byTab, [tabId]: { ...current, sseEvents: [...current.sseEvents, event] } } };
+    }),
 }));
 
 export function useTabRun(tabId: string): TabRunState {
