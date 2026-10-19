@@ -54,6 +54,10 @@ export function RawView({ response, wrap }: { response: KapiResponse; wrap: bool
 export function PreviewView({ response }: { response: KapiResponse }) {
   const kind = useMemo(() => previewKind(response.contentType.split(';')[0].trim().toLowerCase()), [response]);
   const url = useMemo(() => (response.blob ? URL.createObjectURL(response.blob) : null), [response.blob]);
+  const pdfUrl = useMemo(
+    () => (kind === 'pdf' && response.blob ? URL.createObjectURL(new Blob([response.blob], { type: 'application/pdf' })) : null),
+    [kind, response.blob],
+  );
 
   if (kind === 'none') {
     return <EmptyState title="No preview available for this content type" detail={response.contentType} />;
@@ -84,7 +88,11 @@ export function PreviewView({ response }: { response: KapiResponse }) {
       </div>
     );
   }
-  return <iframe title="Response preview" src={url} className="h-full w-full border-0" />;
+  // PDF needs the webview's built-in viewer, which a sandboxed frame refuses to
+  // load — so instead of `sandbox`, the frame gets a blob re-typed as exactly
+  // application/pdf (never left to content sniffing, which could otherwise
+  // render HTML in the app's own origin). The CSP backs this up.
+  return <iframe title="Response preview" src={pdfUrl ?? undefined} className="h-full w-full border-0" />;
 }
 
 function BinaryNotice({ response }: { response: KapiResponse }) {

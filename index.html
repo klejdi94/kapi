@@ -7,14 +7,7 @@
     <meta name="description" content="A fast, local-first API client. Nothing is stored on a server." />
     <meta name="color-scheme" content="dark light" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <script>
-      // Applied before paint so the app never flashes the wrong theme.
-      try {
-        var t = localStorage.getItem('kapi.theme');
-        var dark = t ? t === 'dark' : !window.matchMedia('(prefers-color-scheme: light)').matches;
-        document.documentElement.classList.toggle('dark', dark);
-      } catch (e) {}
-    </script>
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

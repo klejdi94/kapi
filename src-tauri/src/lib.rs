@@ -92,3 +92,71 @@ pub fn run() {
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
 }
+
+#[cfg(test)]
+mod capability_tests {
+    use serde_json::Value;
+
+    fn git_scopes() -> Vec<Value> {
+        let raw = include_str!("../capabilities/default.json");
+        let json: Value = serde_json::from_str(raw).expect("default.json is valid JSON");
+        json["permissions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["identifier"] == "shell:allow-execute")
+            .expect("shell:allow-execute is configured")["allow"]
+            .as_array()
+            .unwrap()
+            .clone()
+    }
+
+    /// Mirrors how tauri-plugin-shell anchors a validator (`^…$`), so a typo
+    /// fails here instead of panicking at app startup.
+    fn validator(scope: &Value, index: usize) -> regex::Regex {
+        let pattern = scope["args"][index]["validator"].as_str().expect("a validator arg");
+        regex::Regex::new(&format!("^{pattern}$")).expect("validator compiles")
+    }
+
+    fn scope(name: &str) -> Value {
+        git_scopes().into_iter().find(|s| s["name"] == name).unwrap_or_else(|| panic!("no scope {name}"))
+    }
+
+    #[test]
+    fn git_never_gets_open_ended_arguments() {
+        for scope in git_scopes() {
+            assert_eq!(scope["cmd"], "git");
+            assert!(scope["args"].is_array(), "{} must pin its arguments", scope["name"]);
+        }
+    }
+
+    #[test]
+    fn every_validator_compiles() {
+        for scope in git_scopes() {
+            for (i, arg) in scope["args"].as_array().unwrap().iter().enumerate() {
+                if arg.is_object() {
+                    validator(&scope, i);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn remote_url_rejects_option_injection() {
+        let re = validator(&scope("git-remote-add"), 3);
+        assert!(re.is_match("https://github.com/klejdi94/kapi.git"));
+        assert!(re.is_match("git@github.com:klejdi94/kapi.git"));
+        assert!(re.is_match("ssh://git@host/repo.git"));
+        assert!(!re.is_match("--upload-pack=touch /tmp/x"));
+        assert!(!re.is_match("ext::sh -c touch% /tmp/x"));
+        assert!(!re.is_match("file:///etc"));
+        assert!(!re.is_match("https://x y"));
+    }
+
+    #[test]
+    fn log_limit_is_numeric() {
+        let re = validator(&scope("git-log"), 1);
+        assert!(re.is_match("-20"));
+        assert!(!re.is_match("--output=/tmp/x"));
+    }
+}

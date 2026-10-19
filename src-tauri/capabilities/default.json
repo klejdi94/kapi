@@ -17,7 +17,19 @@
     {
       "identifier": "shell:allow-execute",
       "allow": [
-        { "name": "git", "cmd": "git", "args": true }
+        {"name": "git-rev-parse", "cmd": "git", "args": ["rev-parse", "--is-inside-work-tree"]},
+        {"name": "git-init", "cmd": "git", "args": ["init"]},
+        {"name": "git-remote", "cmd": "git", "args": ["remote"]},
+        {"name": "git-remote-add", "cmd": "git", "args": ["remote", "add", "origin", {"validator": "(https://|ssh://|git@)[^\\s\\-][^\\s]*"}]},
+        {"name": "git-status", "cmd": "git", "args": ["status", "--porcelain"]},
+        {"name": "git-diff", "cmd": "git", "args": ["diff", "--", "."]},
+        {"name": "git-diff-untracked", "cmd": "git", "args": ["diff", "--no-index", "--", "/dev/null", {"validator": "[^\\n\\r]+"}]},
+        {"name": "git-add", "cmd": "git", "args": ["add", "-A"]},
+        {"name": "git-commit", "cmd": "git", "args": ["commit", "-m", {"validator": "(?s).+"}]},
+        {"name": "git-push", "cmd": "git", "args": ["push", "-u", "origin", "HEAD"]},
+        {"name": "git-pull", "cmd": "git", "args": ["pull"]},
+        {"name": "git-log", "cmd": "git", "args": ["log", {"validator": "-[0-9]{1,4}"}, "--pretty=format:%h\u001f%s\u001f%ar\u001e"]},
+        {"name": "git-branch", "cmd": "git", "args": ["branch", "--show-current"]}
       ]
     },
     "shell:allow-open",
