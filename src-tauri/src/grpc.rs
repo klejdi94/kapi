@@ -726,8 +726,9 @@ package common;
 enum Level { LEVEL_UNSPECIFIED = 0; LEVEL_HIGH = 1; }
 "#;
 
-    fn write_protos() -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("kapi-grpc-test-{}", std::process::id()));
+    /// Each test gets its own folder: tests run in parallel and each removes its folder when done.
+    fn write_protos(test: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("kapi-grpc-test-{}-{test}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("greeter.proto"), PROTO).unwrap();
         std::fs::write(dir.join("common.proto"), COMMON).unwrap();
@@ -736,7 +737,7 @@ enum Level { LEVEL_UNSPECIFIED = 0; LEVEL_HIGH = 1; }
 
     #[test]
     fn compiles_protos_with_imports_and_builds_templates() {
-        let dir = write_protos();
+        let dir = write_protos("templates");
         let schema = compile_protos(vec![dir.join("greeter.proto").to_string_lossy().to_string()]).unwrap();
         assert_eq!(schema.services.len(), 1);
         let service = &schema.services[0];
@@ -767,7 +768,7 @@ enum Level { LEVEL_UNSPECIFIED = 0; LEVEL_HIGH = 1; }
 
     #[test]
     fn reports_bad_messages_clearly() {
-        let dir = write_protos();
+        let dir = write_protos("errors");
         let schema = compile_protos(vec![dir.join("greeter.proto").to_string_lossy().to_string()]).unwrap();
         let bytes = base64::engine::general_purpose::STANDARD.decode(&schema.descriptor_set).unwrap();
         let pool = DescriptorPool::decode(bytes.as_slice()).unwrap();

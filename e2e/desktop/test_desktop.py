@@ -31,6 +31,13 @@ def check(name, condition, detail=''):
     print(f"{'✓' if condition else '✗'} {name}{'' if condition else f' — {detail}'}")
     if not condition:
         failures.append(name)
+        annotate(f'{name} — {detail}')
+
+
+def annotate(message):
+    # Shows up as an annotation on the CI run, readable without downloading logs.
+    if os.environ.get('GITHUB_ACTIONS'):
+        print(f"::error title=desktop e2e::{str(message)[:900]}")
 
 
 def clickable(xpath):
@@ -130,6 +137,7 @@ try:
 except Exception as exc:  # noqa: BLE001 — report and screenshot whatever broke
     failures.append(f'exception: {exc!r}'[:300])
     print(failures[-1])
+    annotate(f"{failures[-1]} at {d.current_url} — page text: {d.find_element(By.TAG_NAME, 'body').text[:500]!r}")
     d.save_screenshot(f'{SHOTS}/failure.png')
 finally:
     d.quit()

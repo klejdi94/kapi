@@ -10,7 +10,7 @@ on:
 
 jobs:
   frontend:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -40,7 +40,7 @@ jobs:
           node npm/dist/kapi.js run /tmp/smoke.json
 
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -113,7 +113,7 @@ jobs:
           retention-days: 7
 
   rust:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
