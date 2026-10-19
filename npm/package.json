@@ -1,6 +1,6 @@
 {
   "name": "kapi",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "kapi, headless: run API collections (kapi or Postman v2.1) from a terminal or CI, and let an AI CLI drive kapi through MCP.",
   "license": "Apache-2.0",
   "type": "module",

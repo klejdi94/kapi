@@ -2,7 +2,7 @@
 
 All notable changes to kapi. Versions follow [semver](https://semver.org).
 
-## Unreleased
+## 0.4.0 — 2026-10-19
 
 ### Security
 - Collection scripts now run in a sandbox (a disposable Web Worker in the app, an isolated `vm`

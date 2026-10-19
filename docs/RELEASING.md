@@ -5,7 +5,7 @@
    node scripts/bump-version.mjs 0.4.0
    ```
    Add the release notes to `CHANGELOG.md`, commit, and open a PR. CI has to be green.
-2. **Tag the merge commit** on `main`:
+2. **Tag the merge commit** on `master`:
    ```bash
    git tag v0.4.0 && git push origin v0.4.0
    ```
