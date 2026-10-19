@@ -1,18 +1,21 @@
-import type { KV } from '@/types';
+import type { AuthConfig, Collection, KV } from '@/types';
+import { AUTH_SECRET_FIELDS, collectionAuths, getAuthField, isLiteralSecret, setAuthField } from './secretFields';
 
 /**
- * Secret-flagged variables, encrypted at rest.
+ * Secrets, encrypted at rest: secret-flagged variables and the credential
+ * fields of auth configs (see secretFields.ts), in the workspace file, open
+ * tabs and request history.
  *
- * `kapi.workspaces.json` keeps every variable row as before, except that a
- * secret row's value is blanked and marked `secretInVault`. The real values
- * live in `kapi.secrets.json`, AES-256-GCM-encrypted with a key held in the OS
- * credential store (see `src-tauri/src/secrets.rs`). Nothing here touches the
+ * The store files keep their shape, except that each such value is blanked
+ * and marked (`secretInVault` on a variable row, `vaulted` on an auth config).
+ * The real values live in `kapi.secrets.json`, AES-256-GCM-encrypted with a
+ * key held in the OS credential store (see `src-tauri/src/secrets.rs`). Nothing here touches the
  * keychain or the filesystem directly — callers pass the key and do the I/O —
  * so the same code runs in the app (WebCrypto in the webview) and in the MCP
  * server (Node's WebCrypto).
  */
 
-/** Row id → secret value. */
+/** Vault key → secret value. Keys are namespaced by store: `kapi.workspaces/var/<rowId>`, `kapi.session/auth/<tabId>/bearer.token`… */
 export type SecretMap = Record<string, string>;
 
 export interface VaultFile {
@@ -23,74 +26,137 @@ export interface VaultFile {
 
 const AAD = new TextEncoder().encode('kapi.secrets.v1');
 
+/** One place a secret can live inside a persisted store. */
+interface Slot {
+  key: string;
+  get(): string;
+  set(value: string): void;
+  /** Whether the current value should be kept out of the file. */
+  shouldVault(value: string): boolean;
+  marked(): boolean;
+  mark(on: boolean): void;
+}
+
 interface WorkspaceLike {
   globals?: KV[];
   environments?: { variables?: KV[] }[];
-  collections?: { variables?: KV[] }[];
+  collections?: Collection[];
 }
 
-/** Every variable row that can carry the secret flag, across all workspaces. */
-function secretCapableRows(state: unknown): KV[] {
-  const workspaces = (state as { workspaces?: WorkspaceLike[] } | null)?.workspaces;
-  if (!Array.isArray(workspaces)) return [];
-  const rows: KV[] = [];
-  for (const ws of workspaces) {
-    if (Array.isArray(ws.globals)) rows.push(...ws.globals);
-    for (const env of ws.environments ?? []) if (Array.isArray(env.variables)) rows.push(...env.variables);
-    for (const col of ws.collections ?? []) if (Array.isArray(col.variables)) rows.push(...col.variables);
-  }
-  return rows.filter((row) => row && typeof row === 'object');
+function variableSlots(ns: string, rows: KV[] | undefined): Slot[] {
+  return (rows ?? [])
+    .filter((row) => row && typeof row === 'object')
+    .map((row) => ({
+      key: `${ns}/var/${row.id}`,
+      get: () => row.value ?? '',
+      set: (value) => {
+        row.value = value;
+      },
+      shouldVault: (value) => !!row.secret && !!value,
+      marked: () => !!row.secretInVault,
+      mark: (on) => {
+        if (on) row.secretInVault = true;
+        else delete row.secretInVault;
+      },
+    }));
 }
+
+function authSlots(ns: string, ownerId: string, auth: AuthConfig | undefined): Slot[] {
+  if (!auth || typeof auth !== 'object') return [];
+  return AUTH_SECRET_FIELDS.map((field) => ({
+    key: `${ns}/auth/${ownerId}/${field}`,
+    get: () => getAuthField(auth, field),
+    set: (value) => setAuthField(auth, field, value),
+    shouldVault: isLiteralSecret,
+    marked: () => !!auth.vaulted?.includes(field),
+    mark: (on) => {
+      const rest = (auth.vaulted ?? []).filter((f) => f !== field);
+      if (on) rest.push(field);
+      if (rest.length) auth.vaulted = rest;
+      else delete auth.vaulted;
+    },
+  }));
+}
+
+/** Every secret slot in a persisted store's state, by store name. Stores not listed here hold no secrets. */
+function slotsFor(ns: string, state: unknown): Slot[] {
+  const slots: Slot[] = [];
+  const s = state as Record<string, unknown> | null;
+  if (!s || typeof s !== 'object') return slots;
+  if (ns === 'kapi.workspaces' && Array.isArray(s.workspaces)) {
+    for (const ws of s.workspaces as WorkspaceLike[]) {
+      slots.push(...variableSlots(ns, ws.globals));
+      for (const env of ws.environments ?? []) slots.push(...variableSlots(ns, env.variables));
+      for (const collection of ws.collections ?? []) {
+        slots.push(...variableSlots(ns, collection.variables));
+        for (const { ownerId, auth } of collectionAuths(collection)) slots.push(...authSlots(ns, ownerId, auth));
+      }
+    }
+  }
+  if (ns === 'kapi.session' && Array.isArray(s.tabs)) {
+    for (const tab of s.tabs as { id: string; request?: { auth?: AuthConfig } }[]) slots.push(...authSlots(ns, tab.id, tab.request?.auth));
+  }
+  if (ns === 'kapi.history' && Array.isArray(s.entries)) {
+    for (const entry of s.entries as { id: string; request?: { auth?: AuthConfig } }[]) slots.push(...authSlots(ns, entry.id, entry.request?.auth));
+  }
+  return slots;
+}
+
+/** Store names whose files can contain secrets (and so go through the vault). */
+export const VAULTED_STORES = ['kapi.workspaces', 'kapi.session', 'kapi.history'];
 
 /** True when a persisted store text references the vault (cheap pre-check before parsing). */
 export function referencesVault(text: string): boolean {
-  return text.includes('"secretInVault"');
+  return text.includes('"secretInVault"') || text.includes('"vaulted"');
 }
 
 /**
- * Moves secret values out of a persisted `{state, version}` envelope.
- * Rows still waiting on a value the vault couldn't supply (`secretInVault`
- * with an empty value) keep their previous vault entry, so a locked keychain
- * at startup never turns into a lost secret on the next save.
+ * Moves secrets out of a persisted `{state, version}` envelope for store `ns`.
+ * Returns the secrets under their vault keys. Slots still waiting on a value
+ * the vault couldn't supply (marked, but empty) keep their previous vault
+ * entry, so a locked keychain at startup never turns into a lost secret on
+ * the next save.
  */
-export function extractSecrets(envelopeText: string, previous: SecretMap): { text: string; secrets: SecretMap; count: number } {
+export function extractSecrets(envelopeText: string, previous: SecretMap, ns: string): { text: string; secrets: SecretMap; count: number } {
   const envelope = JSON.parse(envelopeText) as { state?: unknown };
   const secrets: SecretMap = {};
   let count = 0;
-  for (const row of secretCapableRows(envelope.state)) {
-    if (row.secret) {
-      if (row.value) {
-        secrets[row.id] = row.value;
-      } else if (row.secretInVault && row.id in previous) {
-        secrets[row.id] = previous[row.id];
-      } else if (row.secretInVault) {
-        // Unresolved and not in the vault either: leave the marker so the
-        // row never silently turns into an ordinary empty variable.
-        continue;
-      } else {
-        continue;
-      }
-      row.value = '';
-      row.secretInVault = true;
+  for (const slot of slotsFor(ns, envelope.state)) {
+    const value = slot.get();
+    if (slot.shouldVault(value)) {
+      secrets[slot.key] = value;
+      slot.set('');
+      slot.mark(true);
       count++;
+    } else if (!value && slot.marked()) {
+      // Unresolved: carry the stored value forward, and keep the marker either
+      // way so it never silently turns into an ordinary empty field.
+      if (slot.key in previous) secrets[slot.key] = previous[slot.key];
     } else {
-      delete row.secretInVault;
+      slot.mark(false);
     }
   }
   return { text: JSON.stringify(envelope), secrets, count };
 }
 
 /** Puts vault values back into a persisted envelope. A value already in the file (e.g. written by the MCP server) wins. */
-export function injectSecrets(envelopeText: string, secrets: SecretMap): { text: string; missing: number } {
+export function injectSecrets(envelopeText: string, secrets: SecretMap, ns: string): { text: string; missing: number } {
   const envelope = JSON.parse(envelopeText) as { state?: unknown };
   let missing = 0;
-  for (const row of secretCapableRows(envelope.state)) {
-    if (!row.secretInVault) continue;
-    if (!row.value && row.id in secrets) row.value = secrets[row.id];
-    if (row.value) delete row.secretInVault;
+  for (const slot of slotsFor(ns, envelope.state)) {
+    if (!slot.marked()) continue;
+    if (!slot.get() && slot.key in secrets) slot.set(secrets[slot.key]);
+    if (slot.get()) slot.mark(false);
     else missing++;
   }
   return { text: JSON.stringify(envelope), missing };
+}
+
+/** The vault after store `ns` saved `secrets`: its own entries replaced, every other store's kept. */
+export function mergeVault(vault: SecretMap, ns: string, secrets: SecretMap): SecretMap {
+  const out: SecretMap = {};
+  for (const [key, value] of Object.entries(vault)) if (!key.startsWith(`${ns}/`)) out[key] = value;
+  return { ...out, ...secrets };
 }
 
 export function sameSecrets(a: SecretMap, b: SecretMap): boolean {

@@ -79,6 +79,6 @@ export async function withSecrets<T>(state: T): Promise<{ state: T; missing: num
   const text = JSON.stringify({ state, version: 1 });
   if (!referencesVault(text)) return { state, missing: 0 };
   const vault = await readVault();
-  const { text: injected, missing } = injectSecrets(text, vault ?? {});
+  const { text: injected, missing } = injectSecrets(text, vault ?? {}, 'kapi.workspaces');
   return { state: (JSON.parse(injected) as { state: T }).state, missing };
 }

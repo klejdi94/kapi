@@ -3,14 +3,14 @@ import { invoke } from '@tauri-apps/api/core';
 import { appDataDir, join } from '@tauri-apps/api/path';
 import { fileJSONStorage } from './fileStorage';
 import { pathExists, readTextFile, writeTextFile } from './fs';
-import { decryptVault, encryptVault, extractSecrets, injectSecrets, referencesVault, sameSecrets, type SecretMap } from './secretVault';
+import { decryptVault, encryptVault, extractSecrets, injectSecrets, mergeVault, referencesVault, sameSecrets, type SecretMap } from './secretVault';
 import { isDesktop } from './transport';
 import { toast } from './toast';
 
 /**
- * Wraps the workspace store's file storage so secret-flagged variables are
- * written to the encrypted vault (`kapi.secrets.json`) instead of the plain
- * workspace file. See lib/secretVault.ts for the format and the Rust side for
+ * Wraps the file storage of every store that can hold secrets (workspaces,
+ * open tabs, history) so they're written to the encrypted vault
+ * (`kapi.secrets.json`) instead of the plain store files. See lib/secretVault.ts for the format and the Rust side for
  * where the key lives.
  *
  * If the key can't be obtained (keychain prompt denied, no Secret Service on a
@@ -67,13 +67,14 @@ async function save(name: string, value: string): Promise<void> {
     fileJSONStorage.setItem(name, value);
     return;
   }
-  const { text, secrets } = extractSecrets(value, vault);
-  if (!sameSecrets(secrets, vault)) {
+  const { text, secrets } = extractSecrets(value, vault, name);
+  const next = mergeVault(vault, name, secrets);
+  if (!sameSecrets(next, vault)) {
     try {
-      const encrypted = await encryptVault(secrets, await getKey());
-      // Written before the workspace file, so the file never references a value the vault doesn't hold.
+      const encrypted = await encryptVault(next, await getKey());
+      // Written before the store file, so the file never references a value the vault doesn't hold.
       await writeTextFile(await vaultPath(), JSON.stringify(encrypted), { backup: true });
-      knownVault = secrets;
+      knownVault = next;
     } catch (err) {
       warnOnce(`Saving the encrypted secrets file failed (${err instanceof Error ? err.message : String(err)}).`);
       fileJSONStorage.setItem(name, value);
@@ -89,8 +90,8 @@ export const vaultedStorage: StateStorage = {
     if (!text || !isDesktop() || !referencesVault(text)) return text;
     const vault = await loadVault();
     if (!vault) return text;
-    const { text: injected, missing } = injectSecrets(text, vault);
-    if (missing) toast.error('Some secret values are missing', `${missing} secret variable${missing === 1 ? '' : 's'} could not be found in the encrypted secrets file.`);
+    const { text: injected, missing } = injectSecrets(text, vault, name);
+    if (missing) toast.error('Some secret values are missing', `${missing} secret value${missing === 1 ? '' : 's'} could not be found in the encrypted secrets file.`);
     return injected;
   },
   setItem: (name, value) => {

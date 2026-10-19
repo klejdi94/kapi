@@ -1,6 +1,7 @@
 import type { Collection, Workspace } from '@/types';
 import { readTextFile, writeTextFile, pathExists, joinPath } from './fs';
 import * as git from './git';
+import { redactCollections } from './secretFields';
 
 export const SNAPSHOT_FILENAME = 'kapi-workspace.json';
 
@@ -11,13 +12,15 @@ export interface WorkspaceSnapshot {
 }
 
 /**
- * Environments are deliberately left out of the git snapshot: they're the
- * one place people routinely put real API keys and tokens, and "sync to git"
- * should not be a surprise way to commit a secret. Collections — requests,
- * folders, auth *shapes*, {{variable}} references — have no such landmine.
+ * "Sync to git" must never be a surprise way to commit a secret. Environments
+ * are left out entirely (that's where people put real keys), and within the
+ * collections, secret-flagged variables and literal auth credentials are
+ * blanked — `{{variable}}` references are kept, so whoever pulls gets working
+ * requests that read their own values. Pulling keeps any local credential
+ * the snapshot doesn't carry (see `keepLocalSecrets`).
  */
 export function toSnapshot(workspace: Workspace): WorkspaceSnapshot {
-  return { format: 'kapi-workspace/1', name: workspace.name, collections: workspace.collections };
+  return { format: 'kapi-workspace/1', name: workspace.name, collections: redactCollections(workspace.collections) };
 }
 
 export function snapshotPath(gitRepoPath: string): string {

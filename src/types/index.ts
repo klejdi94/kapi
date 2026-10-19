@@ -72,6 +72,8 @@ export interface AuthConfig {
   /** HTTP Digest (RFC 7616) — answered automatically when the server replies 401 with a Digest challenge. */
   digest?: { username: string; password: string };
   custom?: { header: string; value: string };
+  /** Persisted form only: credential fields whose values live in the encrypted secrets file (see lib/secretVault.ts). */
+  vaulted?: string[];
 }
 
 export type BodyMode =

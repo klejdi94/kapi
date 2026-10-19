@@ -7,6 +7,7 @@ import { toast } from '@/lib/toast';
 import * as git from '@/lib/git';
 import { ensureRepo, readPanelState, readSnapshot, writeSnapshot, type GitPanelState } from '@/lib/gitWorkspace';
 import { confirmAction } from '@/lib/confirm';
+import { keepLocalSecrets } from '@/lib/secretFields';
 
 export function GitPanel() {
   const workspace = useActiveWorkspace();
@@ -65,7 +66,7 @@ export function GitPanel() {
           { okLabel: 'Load it' },
         );
         if (loadExisting) {
-          replaceCollections(existing.collections);
+          replaceCollections(keepLocalSecrets(existing.collections, workspace.collections));
           toast.success('Loaded workspace from folder');
         }
       }
@@ -131,7 +132,7 @@ export function GitPanel() {
       const result = await git.pull(path);
       if (result.ok) {
         const snapshot = await readSnapshot(path);
-        if (snapshot) replaceCollections(snapshot.collections);
+        if (snapshot) replaceCollections(keepLocalSecrets(snapshot.collections, useWorkspaces.getState().workspaces.find((w) => w.id === workspace.id)?.collections ?? []));
         toast.success('Pulled');
       } else {
         toast.error('Pull failed', result.stderr);

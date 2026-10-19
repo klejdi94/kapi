@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import type { RequestDef, RequestTabKey, ResponseView, Tab, WebSocketRequestDef, GrpcRequestDef } from '@/types';
 import { newTab } from '@/lib/factory';
 import { withUrlParams } from '@/lib/send';
-import { fileJSONStorage } from '@/lib/fileStorage';
+import { vaultedStorage } from '@/lib/vaultedStorage';
 
 export type SidebarPanel = 'collections' | 'environments' | 'history' | 'git' | 'mock' | 'ai' | 'discovery' | 'cookies';
 export type SplitLayout = 'horizontal' | 'vertical';
@@ -162,7 +162,7 @@ export const useSession = create<SessionState>()(
     {
       name: 'kapi.session',
       version: 1,
-      storage: createJSONStorage(() => fileJSONStorage),
+      storage: createJSONStorage(() => vaultedStorage),
       partialize: (state) => ({
         tabs: state.tabs,
         activeTabId: state.activeTabId,
