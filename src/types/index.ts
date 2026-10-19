@@ -114,6 +114,15 @@ export interface RequestSettings {
   caCertPem?: string;
 }
 
+/** The responses an OpenAPI/Swagger spec documents for one operation, kept with requests imported or synced from it. */
+export interface ResponseContract {
+  specVersion: '2.0' | '3.0' | '3.1';
+  /** Checked after every send when on; turn off per request. */
+  enabled: boolean;
+  /** Keyed by status code, `2XX`-style range, or `DEFAULT`. Schemas have their `$ref`s inlined. */
+  responses: Record<string, { description: string; schema?: unknown }>;
+}
+
 export interface RequestDef {
   method: HttpMethod;
   url: string;
@@ -125,6 +134,8 @@ export interface RequestDef {
   settings: RequestSettings;
   /** Saved sample responses, shown in the viewer's examples menu. */
   examples?: SavedExample[];
+  /** Responses documented by the spec this request came from (see lib/contract.ts). */
+  contract?: ResponseContract;
   /** JS run before the request is built — set/read variables, e.g. to sign a request. */
   preRequestScript?: string;
   /** JS run after the response arrives — assertions via pm.test(), can also set variables. */

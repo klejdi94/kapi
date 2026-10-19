@@ -219,7 +219,14 @@ export function RequestEditor({
             onChange={(next) => collection && nodeId && updateNode(collection.id, nodeId, { description: next })}
           />
         )}
-        {requestTab === 'settings' && <SettingsTab settings={request.settings} onChange={(settings) => set('settings', settings)} />}
+        {requestTab === 'settings' && (
+          <SettingsTab
+            settings={request.settings}
+            onChange={(settings) => set('settings', settings)}
+            contract={request.contract}
+            onContractChange={(contract) => set('contract', contract)}
+          />
+        )}
       </div>
     </div>
   );

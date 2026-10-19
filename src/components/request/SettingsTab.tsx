@@ -1,8 +1,18 @@
 import { useState } from 'react';
-import type { RequestSettings } from '@/types';
+import type { RequestSettings, ResponseContract } from '@/types';
 import { Field, Checkbox, Input } from '@/components/ui/primitives';
 
-export function SettingsTab({ settings, onChange }: { settings: RequestSettings; onChange: (settings: RequestSettings) => void }) {
+export function SettingsTab({
+  settings,
+  onChange,
+  contract,
+  onContractChange,
+}: {
+  settings: RequestSettings;
+  onChange: (settings: RequestSettings) => void;
+  contract?: ResponseContract;
+  onContractChange?: (contract: ResponseContract) => void;
+}) {
   const set = <K extends keyof RequestSettings>(key: K, value: RequestSettings[K]) => onChange({ ...settings, [key]: value });
   const [mtlsOpen, setMtlsOpen] = useState(!!(settings.clientCertPem || settings.clientKeyPem));
 
@@ -22,6 +32,25 @@ export function SettingsTab({ settings, onChange }: { settings: RequestSettings;
           <span className="tnum w-14 text-[12.5px] text-dim">{(settings.timeoutMs / 1000).toFixed(0)}s</span>
         </div>
       </Field>
+
+      {contract && onContractChange && (
+        <div className="flex flex-col gap-2">
+          <Checkbox
+            label="Check responses against the OpenAPI contract"
+            hint="This request came from an API spec. Every response is checked for a documented status and a body that matches its schema; results appear in the Tests tab."
+            checked={contract.enabled}
+            onChange={(enabled) => onContractChange({ ...contract, enabled })}
+          />
+          <div className="ml-6 flex flex-wrap gap-1.5 text-[11px]">
+            {Object.entries(contract.responses).map(([status, r]) => (
+              <span key={status} title={r.description} className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-dim">
+                {status}
+                {r.schema ? ' · schema' : ''}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col gap-3">
         <Checkbox

@@ -51,6 +51,7 @@ import { toast } from '@/lib/toast';
 import { responseToExample, exampleToResponse } from '@/lib/examples';
 import { applyScriptRequest, chainScripts, responseToScriptInput, scriptRequestOf, type ScriptVars, type ChainOutcome, type TestResult } from '@/lib/scripting';
 import { makeScriptSender } from '@/lib/scripting/sendBridge';
+import { contractTestsLazy } from '@/lib/contractLazy';
 import { useTestResults } from '@/store/testResults';
 import { withTrailingBlank } from '@/lib/factory';
 import type { GrpcRequestDef, KapiResponse, RequestDef, SavedExample, SentRequest, WebSocketRequestDef } from '@/types';
@@ -280,6 +281,8 @@ export default function App() {
         'test',
         { sendRequest: scriptSender },
       );
+      // Checks against the OpenAPI spec the request came from, if any.
+      post.tests.push(...(await contractTestsLazy(request.contract, result.response)));
       logScriptPhase('Test', post, activeTab.name);
       persistScriptVars(post);
       useTestResults.getState().setResults(activeTab.id, post.tests);

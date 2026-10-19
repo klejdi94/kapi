@@ -1,6 +1,7 @@
 import * as YAML from 'yaml';
 import { emptyAuth, emptyBody, kv, newCollection, newEnvironment, newFolder, newRequestNode, withTrailingBlank } from '@/lib/factory';
 import type { Collection, Environment, FolderNode, TreeNode } from '@/types';
+import { contractFromOperation, derefSchema } from '@/lib/contractSpec';
 
 interface OaOperation {
   operationId?: string;
@@ -10,6 +11,7 @@ interface OaOperation {
   parameters?: OaParameter[];
   requestBody?: { content?: Record<string, { schema?: unknown; example?: unknown; examples?: Record<string, { value?: unknown }> }> };
   security?: Record<string, unknown>[];
+  responses?: Record<string, { description?: string; content?: Record<string, { schema?: unknown }>; schema?: unknown }>;
 }
 interface OaParameter {
   name: string;
@@ -147,10 +149,14 @@ export function importOpenApi(doc: OaDoc): { collection: Collection; environment
 
       const jsonContent = op.requestBody?.content?.['application/json'];
       if (jsonContent) {
-        const example = exampleFor(jsonContent) ?? sampleFromJsonSchema(jsonContent.schema);
+        // $refs resolved first, so a body built from a referenced schema isn't just `null`.
+        const example = exampleFor(jsonContent) ?? sampleFromJsonSchema(derefSchema(jsonContent.schema, doc));
         node.request.body = { ...emptyBody(), mode: 'json' };
         node.request.body.text.json = JSON.stringify(example, null, 2);
       }
+
+      const contract = contractFromOperation(op, doc);
+      if (contract) node.request.contract = contract;
 
       const tag = op.tags?.[0];
       if (tag) {

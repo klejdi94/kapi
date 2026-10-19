@@ -67,6 +67,11 @@ export as JSON. The same pipeline runs headless from a terminal or CI — see be
   <img alt="Collection runner results" src="docs/screenshots/collection-runner.jpg" width="880">
 </p>
 
+### Contract tests for free
+
+Import or sync an OpenAPI/Swagger spec and every response is checked against it — a documented
+status, a body that matches the schema — in a manual send, the Runner and CI, without writing a test.
+
 ### Docs that write themselves
 
 Markdown notes per request roll up into one document per collection — exportable as Markdown or
@@ -110,7 +115,8 @@ collection scope and globals — with a diff view for comparing two environments
 **Scripting, the Postman way**
 Pre-request and test scripts with the `pm` API you already know — chai-style `pm.expect`,
 `pm.response.to.have.status`, `pm.sendRequest`, `pm.iterationData`, even legacy `postman.*` and
-`tests[…]` — per request *and* per collection, running in that order. Scripts run in a sandbox with
+`tests[…]`, and `require()` of lodash, crypto-js, moment, uuid and xml2js — per request *and* per
+collection, running in that order. Scripts run in a sandbox with
 no access to your files or the app, so an imported collection can't do more than send requests.
 
 </td></tr>

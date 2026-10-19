@@ -5,6 +5,7 @@ import { ancestorsOf, locate, walk } from '@/lib/tree';
 import { send } from '@/lib/send';
 import { applyScriptRequest, chainScripts, responseToScriptInput, scriptRequestOf, type ScriptVars } from '@/lib/scripting';
 import { makeScriptSender } from '@/lib/scripting/sendBridge';
+import { contractTestsLazy } from '@/lib/contractLazy';
 
 export interface HeadlessTarget {
   node: RequestNode;
@@ -155,6 +156,10 @@ export async function runHeadless(opts: HeadlessOptions): Promise<HeadlessFinalS
         'test',
         { sendRequest: scriptSender },
       );
+
+      // Checks against the OpenAPI spec the request came from, if any.
+
+      post.tests.push(...(await contractTestsLazy(request.contract, result.response)));
       if (post.ran) {
         globals = post.vars.globals;
         environment = { ...environment, variables: post.vars.environment };

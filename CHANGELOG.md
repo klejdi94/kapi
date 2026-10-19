@@ -17,6 +17,12 @@ All notable changes to kapi. Versions follow [semver](https://semver.org).
   pulling keeps your local values.
 
 ### Added
+- **Contract testing from OpenAPI**: requests imported or synced from a spec keep its documented
+  responses, and every response is checked for a documented status and a body matching the schema
+  (OpenAPI 3.0/3.1 and Swagger 2, `$ref`s and `nullable` handled) — in the app, the Runner and the CLI,
+  with no tests to write. Switch it off per request in Settings.
+- Scripts can `require()` **lodash, crypto-js, moment, uuid and xml2js** like in Postman, and the legacy
+  `_`, `CryptoJS` and `xml2Json` globals work — evaluated inside the sandbox.
 - **gRPC**: schemas from server reflection or `.proto` files (compiled in-app, imports included),
   unary and all three streaming kinds, metadata, deadlines, TLS and mTLS, streamed responses shown
   live. Saved gRPC requests keep their compiled schema.

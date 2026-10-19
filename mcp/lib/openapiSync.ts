@@ -129,7 +129,14 @@ function mergeCollectionWithSpec(existing: Collection, fresh: Collection): Colle
       matchedKeys.add(key);
       return {
         ...node,
-        request: { ...node.request, params: match.request.params, pathVars: match.request.pathVars, headers: match.request.headers },
+        // The contract follows the spec; whether it's checked stays the user's choice.
+        request: {
+          ...node.request,
+          params: match.request.params,
+          pathVars: match.request.pathVars,
+          headers: match.request.headers,
+          contract: match.request.contract ? { ...match.request.contract, enabled: node.request.contract?.enabled ?? true } : undefined,
+        },
       };
     });
   }

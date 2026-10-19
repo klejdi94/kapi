@@ -5,6 +5,7 @@ import { ancestorsOf, locate, walk } from './tree';
 import { sendWithCookies } from './sendWithCookies';
 import { applyScriptRequest, chainScripts, responseToScriptInput, scriptRequestOf, type ScriptVars, type TestResult } from './scripting';
 import { makeScriptSender } from './scripting/sendBridge';
+import { contractTestsLazy } from '@/lib/contractLazy';
 import { useWorkspaces, activeWorkspace, findCollection } from '@/store/workspaces';
 import { useConsole } from '@/store/console';
 import { withTrailingBlank } from './factory';
@@ -173,6 +174,10 @@ export async function runCollection(opts: RunCollectionOptions): Promise<void> {
         'test',
         { sendRequest: scriptSender },
       );
+
+      // Checks against the OpenAPI spec the request came from, if any.
+
+      post.tests.push(...(await contractTestsLazy(request.contract, result.response)));
       persistVars(workspace, collection, post.vars, post.ran);
 
       const failed = post.tests.some((t) => !t.passed);
