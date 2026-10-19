@@ -59,6 +59,9 @@
     "allow-kapi-grpc-load-protos",
     "allow-kapi-grpc-reflect",
     "allow-kapi-grpc-call",
-    "allow-kapi-grpc-cancel"
+    "allow-kapi-grpc-cancel",
+    "allow-kapi-resolve-secret-ref",
+    "allow-kapi-secret-ref-approvals",
+    "allow-kapi-secret-ref-revoke"
   ]
 }

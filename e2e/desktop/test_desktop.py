@@ -5,6 +5,7 @@ Run via ./run.sh, which starts the servers, a virtual display and a keyring.
 """
 import json
 import os
+import subprocess
 import sys
 import time
 
@@ -74,6 +75,37 @@ try:
     check('CSP blocks injected inline scripts', d.execute_script('return window.__inline === undefined'))
     key = d.execute_async_script("const done = arguments[0]; window.__TAURI_INTERNALS__.invoke('kapi_secrets_key').then(done, (e) => done('ERR ' + e));")
     check('secrets key comes from the OS keychain', isinstance(key, str) and len(key) == 64, key)
+
+    # --- external secret references: consent is native and can't be skipped
+    invoke = "const [cmd, args, done] = arguments; window.__TAURI_INTERNALS__.invoke(cmd, args).then((v) => done({ ok: v }), (e) => done({ err: String(e) }));"
+    approved = d.execute_async_script(invoke, 'kapi_resolve_secret_ref', {'reference': 'op://Private/API/token', 'purpose': 'e2e'})
+    check('an allowed reference is read through the provider CLI', approved == {'ok': 's3cr3t-from-1password'}, approved)
+    d.set_script_timeout(30)
+    d.execute_script(
+        "window.__denied = null; window.__TAURI_INTERNALS__.invoke('kapi_resolve_secret_ref', { reference: 'op://Private/Bank/password', purpose: 'e2e' })"
+        ".then((v) => (window.__denied = { ok: v }), (e) => (window.__denied = { err: String(e) }));"
+    )
+    dialog_seen = False
+    for _ in range(40):
+        time.sleep(0.25)
+        found = subprocess.run(['xdotool', 'search', '--name', 'Allow access to an external secret'], capture_output=True, text=True).stdout.split()
+        if found:
+            dialog_seen = True
+            subprocess.run(['xdotool', 'windowfocus', '--sync', found[0], 'key', '--clearmodifiers', 'Escape'], capture_output=True)
+            break
+    check('an unknown reference opens a native consent dialog', dialog_seen)
+    denied = None
+    for _ in range(40):
+        denied = d.execute_script('return window.__denied')
+        if denied:
+            break
+        time.sleep(0.25)
+    check('declining it refuses the lookup', bool(denied) and "wasn't allowed" in denied.get('err', ''), denied)
+    approvals = d.execute_async_script(invoke, 'kapi_secret_ref_approvals', {})
+    check('declining grants nothing', approvals == {'ok': ['op://Private/API/token']}, approvals)
+    d.execute_async_script(invoke, 'kapi_secret_ref_revoke', {'reference': 'op://Private/API/token'})
+    approvals = d.execute_async_script(invoke, 'kapi_secret_ref_approvals', {})
+    check('an approval can be revoked', approvals == {'ok': []}, approvals)
 
     # --- HTTP with sandboxed scripts
     clickable("//*[normalize-space(.)='Untitled request']").click()

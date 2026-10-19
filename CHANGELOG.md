@@ -17,6 +17,11 @@ All notable changes to kapi. Versions follow [semver](https://semver.org).
   pulling keeps your local values.
 
 ### Added
+- **Secrets from 1Password, AWS Secrets Manager and HashiCorp Vault**: an environment or global
+  variable set to `op://…`, `awssm://…` or `vault://…` is read through that tool's CLI right before
+  each request and never stored. Each reference asks for permission once in a native dialog that
+  scripts and imports can't bypass; allowed references can be revoked. `kapi run`/`load` resolve
+  them with `--secret-refs`.
 - **Compare across environments**: send the open request through two environments and see what
   differs — status, headers (volatile ones hidden) and a path-by-path JSON diff with ignorable paths,
   or a line diff.

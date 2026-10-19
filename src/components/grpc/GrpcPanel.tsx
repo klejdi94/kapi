@@ -15,6 +15,7 @@ import {
   callGrpc,
   cancelGrpc,
   findMethod,
+  grpcTexts,
   grpcAvailable,
   loadProtos,
   messageTemplate,
@@ -24,6 +25,7 @@ import {
   type GrpcSchema,
 } from '@/lib/grpc';
 import { toast } from '@/lib/toast';
+import { withResolvedSecretRefs } from '@/lib/secretRefs';
 
 const INPUT = 'h-8 w-full rounded-md border border-line bg-surface px-2.5 font-mono text-[12.5px] focus:border-accent focus:outline-none';
 
@@ -96,7 +98,8 @@ export function GrpcPanel({
   const reflect = async () => {
     setLoadingSchema(true);
     try {
-      applySchema(await reflectSchema(request, scope), { schemaSource: 'reflection' });
+      const reflectScope = await withResolvedSecretRefs(grpcTexts(request), scope, `gRPC reflection ${request.url}`);
+      applySchema(await reflectSchema(request, reflectScope), { schemaSource: 'reflection' });
     } catch (err) {
       toast.error('Reflection failed', String(err));
     } finally {
@@ -139,7 +142,8 @@ export function GrpcPanel({
     const label = `${request.service}/${request.method}`;
     useConsole.getState().log({ kind: 'http-request', summary: `→ gRPC ${label} @ ${request.url}`, detail: request.message, tabName: label });
     try {
-      const handle = callGrpc(request, scope, (event) => {
+      const callScope = await withResolvedSecretRefs(grpcTexts(request), scope, `gRPC ${label}`);
+      const handle = callGrpc(request, callScope, (event) => {
         if (event.kind === 'headers') patchCall(tabId, { headers: event.metadata });
         else addMessage(tabId, { json: event.json, atMs: event.atMs });
       });

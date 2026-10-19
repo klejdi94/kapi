@@ -9,6 +9,7 @@ import { buildScope, resolve as resolveVar } from '@/lib/variables';
 import { useActiveWorkspace } from '@/store/workspaces';
 import { useConsole } from '@/store/console';
 import { toast } from '@/lib/toast';
+import { withResolvedSecretRefs } from '@/lib/secretRefs';
 
 const STATUS_TONE = { idle: 'dim', connecting: 'warn', open: 'ok', closed: 'dim', error: 'danger' } as const;
 const STATUS_LABEL = { idle: 'Not connected', connecting: 'Connecting…', open: 'Connected', closed: 'Closed', error: 'Error' } as const;
@@ -59,7 +60,9 @@ export function WsPanel({
     setConnecting(tabId);
     const url = resolve(request.url);
     try {
-      const connection = await connect(request, scope, {
+      const texts = [request.url, ...request.headers.filter((h) => h.enabled).flatMap((h) => [h.key, h.value]), ...request.protocols];
+      const connectScope = await withResolvedSecretRefs(texts, scope, `WebSocket ${request.url}`);
+      const connection = await connect(request, connectScope, {
         onMessage: (entry: WsLogEntry) => {
           appendLog(tabId, entry);
           useConsole.getState().log({ kind: 'ws-receive', summary: `← ${url}: ${entry.text.slice(0, 120)}`, detail: entry.text, tabName: request.url });

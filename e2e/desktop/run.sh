@@ -23,6 +23,11 @@ command -v WebKitWebDriver >/dev/null || fail "WebKitWebDriver is not installed 
 # A throwaway profile, so the run never touches real kapi data.
 profile="$(mktemp -d)"
 export HOME="$profile" XDG_DATA_HOME="$profile/.local/share" XDG_CONFIG_HOME="$profile/.config"
+# A stand-in 1Password CLI, and one reference already allowed, so the
+# external-secrets path can be checked without a real vault.
+export PATH="$here/fakebin:$PATH"
+mkdir -p "$XDG_DATA_HOME/com.klejdi94.kapi"
+echo '["op://Private/API/token"]' >"$XDG_DATA_HOME/com.klejdi94.kapi/secret-ref-approvals.json"
 if ! echo -n kapi-e2e | gnome-keyring-daemon --unlock --components=secrets >/dev/null 2>"$SHOTS/keyring.log"; then
   fail "gnome-keyring-daemon could not start: $(head -c 400 "$SHOTS/keyring.log")"
 fi

@@ -209,6 +209,21 @@ sparkline, and a feed of recent runs and OpenAPI syncs across the whole workspac
 by an AI CLI working through kapi's MCP server rather than typed by hand.
 
 </td></tr>
+<tr><td width="50%" valign="top">
+
+**Secrets that never live in kapi**
+Point a variable at `op://vault/item/field`, `awssm://secret#key` or `vault://path#field` and kapi
+reads it with the 1Password, AWS or Vault CLI you're already signed in to, right before each request.
+Each reference asks for your permission once, in a native dialog no script or import can skip.
+
+</td><td width="50%" valign="top">
+
+**Monitors, and staging vs. production**
+Schedule a collection every few minutes while kapi is open and get a system notification when it
+starts failing — or export it as a GitHub Actions workflow for when it's closed. Send any request
+through two environments side by side and see exactly what differs, volatile headers hidden.
+
+</td></tr>
 </table>
 
 ---

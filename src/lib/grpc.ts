@@ -76,6 +76,18 @@ function target(request: GrpcRequestDef, scope: VarScope) {
   };
 }
 
+/** Every string in a gRPC request that `{{variables}}` are substituted into. */
+export function grpcTexts(request: GrpcRequestDef): string[] {
+  return [
+    request.url,
+    request.message,
+    ...request.metadata.filter((m) => m.enabled).flatMap((m) => [m.key, m.value]),
+    request.caCertPem ?? '',
+    request.clientCertPem ?? '',
+    request.clientKeyPem ?? '',
+  ];
+}
+
 export async function pickProtoFiles(): Promise<string[]> {
   const selected = await openDialog({ multiple: true, title: 'Choose .proto files', filters: [{ name: 'Protocol Buffers', extensions: ['proto'] }] });
   if (!selected) return [];

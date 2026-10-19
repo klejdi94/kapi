@@ -16,6 +16,8 @@
  *   --data <file.csv>        One row per iteration
  *   --json                   Machine-readable output
  *   --no-cookies             Don't keep cookies between requests
+ *   --secret-refs            Resolve op:// · awssm:// · vault:// references in --env/--globals
+ *                            values through the op / aws / vault CLIs
  *
  * run:
  *   --iterations <n>         Repeat the run (default: data rows, or 1)
@@ -47,6 +49,8 @@ import { runHeadless, headlessTargetsFor, type HeadlessResult } from '@/cli/head
 import { send } from '@/lib/send';
 import { memoryCookieJar, withCookieJar } from '@/lib/cookieSend';
 import type { VarScope } from '@/lib/variables';
+import { setSecretRefResolver } from '@/lib/secretRefs';
+import { resolveSecretRefNode } from '@/cli/secretRefsNode';
 import { checkThreshold, startLoadTest, summarize, type LoadSample, type LoadSummary } from '@/lib/loadTest';
 
 // Collection scripts may come from anyone who shared the collection — they run
@@ -117,6 +121,7 @@ interface Args {
   delay: number;
   json: boolean;
   cookies: boolean;
+  secretRefs: boolean;
   exportEnv: string | null;
   exportGlobals: string | null;
   vus: number;
@@ -130,7 +135,7 @@ interface Args {
 function parseArgs(argv: string[]): Args {
   const [command, file, ...rest] = argv;
   const args: Args = {
-    command, file, env: null, globals: null, folder: null, iterations: null, data: null, delay: 0, json: false, cookies: true,
+    command, file, env: null, globals: null, folder: null, iterations: null, data: null, delay: 0, json: false, cookies: true, secretRefs: false,
     exportEnv: null, exportGlobals: null, vus: 10, durationMs: null, rampUpMs: 0, thinkMs: 0, scripts: true, thresholds: [],
   };
   const value = (i: number, flag: string) => {
@@ -149,6 +154,7 @@ function parseArgs(argv: string[]): Args {
       case '--delay': args.delay = Number(value(++i, flag)) || 0; break;
       case '--json': args.json = true; break;
       case '--no-cookies': args.cookies = false; break;
+      case '--secret-refs': args.secretRefs = true; break;
       case '--export-environment': args.exportEnv = value(++i, flag); break;
       case '--export-globals': args.exportGlobals = value(++i, flag); break;
       case '--vus': args.vus = positiveInt(value(++i, flag), flag); break;
@@ -287,6 +293,8 @@ async function main() {
   try {
     const args = parseArgs(process.argv.slice(2));
     if (!args.file || (args.command !== 'run' && args.command !== 'load')) throw new UsageError(USAGE);
+    // Opt-in: the CLI's equivalent of the app's per-reference consent.
+    if (args.secretRefs) setSecretRefResolver((reference) => resolveSecretRefNode(reference));
     process.exit(args.command === 'load' ? await loadCommand(args) : await runCommand(args));
   } catch (err) {
     console.error(err instanceof UsageError ? err.message : `kapi: ${(err as Error).stack ?? err}`);

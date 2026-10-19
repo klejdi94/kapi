@@ -4,6 +4,7 @@ import { useWorkspaces, useActiveWorkspace } from '@/store/workspaces';
 import { KVEditor } from '@/components/ui/KVEditor';
 import { IconButton, Button, Field } from '@/components/ui/primitives';
 import { EnvironmentDiffModal } from './EnvironmentDiffModal';
+import { ExternalSecrets } from './ExternalSecrets';
 import { confirmAction } from '@/lib/confirm';
 import { kv, withTrailingBlank } from '@/lib/factory';
 import { parseDotenv } from '@/lib/dotenv';
@@ -142,6 +143,7 @@ export function EnvironmentsPanel() {
             <div className="overflow-hidden rounded-md border border-line">
               <KVEditor rows={workspace.globals} onChange={setGlobals} showDescription secretToggle />
             </div>
+            <ExternalSecrets rows={workspace.globals} />
           </>
         ) : current ? (
           <>
@@ -168,6 +170,7 @@ export function EnvironmentsPanel() {
             <div className="overflow-hidden rounded-md border border-line">
               <KVEditor rows={current.variables} onChange={(variables) => updateEnvironment(current.id, { variables })} showDescription secretToggle />
             </div>
+            <ExternalSecrets rows={current.variables} />
           </>
         ) : (
           <p className="text-[12px] text-faint">Select or create an environment.</p>

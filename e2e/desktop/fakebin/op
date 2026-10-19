@@ -1,0 +1,9 @@
+#!/bin/sh
+# Stand-in for the 1Password CLI in the desktop E2E suite.
+if [ "$1" = read ] && [ "$2" = --no-newline ]; then
+  case "$3" in
+    op://Private/API/token) printf 's3cr3t-from-1password'; exit 0 ;;
+  esac
+fi
+echo "[ERROR] no such item: $*" >&2
+exit 1

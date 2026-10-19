@@ -26,6 +26,9 @@ fn main() {
             "kapi_grpc_reflect",
             "kapi_grpc_call",
             "kapi_grpc_cancel",
+            "kapi_resolve_secret_ref",
+            "kapi_secret_ref_approvals",
+            "kapi_secret_ref_revoke",
         ])),
     )
     .expect("failed to run tauri-build");

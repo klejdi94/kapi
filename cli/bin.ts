@@ -25,6 +25,7 @@ Usage:
 
 Options for run and load:
   --env <file>  --globals <file>  --folder <name|id>  --data <file.csv>  --json  --no-cookies
+  --secret-refs   resolve op:// awssm:// vault:// values in --env/--globals via their CLIs
 run:   --iterations <n>  --delay <ms>  --export-environment <file>  --export-globals <file>
 load:  --vus <n>  --duration 30s  --iterations <n>  --ramp-up 10s  --think <ms>  --no-scripts
        --threshold p95<500  (repeatable; metrics p50 p90 p95 p99 max mean errors rps)

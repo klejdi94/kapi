@@ -6,11 +6,21 @@ import { flushPendingWrites } from './lib/fileStorage';
 import { installExitFlush } from './lib/exitFlush';
 import { setScriptSandbox } from './lib/scripting';
 import { workerSandbox } from './lib/scripting/workerSandbox';
+import { setSecretRefResolver } from './lib/secretRefs';
+import { isDesktop } from './lib/transport';
+import { invoke } from '@tauri-apps/api/core';
 import './styles/app.css';
 
 // Pre-request/test scripts run in a disposable Web Worker with no Tauri IPC —
 // see lib/scripting/sandbox.ts for why they never run in this window.
 setScriptSandbox(workerSandbox);
+
+// op:// · awssm:// · vault:// references in environment/global variables are
+// read through the manager's own CLI; the native side asks for consent per
+// reference (see src-tauri/src/secret_refs.rs).
+if (isDesktop()) {
+  setSecretRefResolver((reference, purpose) => invoke<string>('kapi_resolve_secret_ref', { reference, purpose }));
+}
 
 // Debounced disk writes (see fileStorage.ts) must not be lost when the
 // window closes or the app quits before their timer fires. `beforeunload`
