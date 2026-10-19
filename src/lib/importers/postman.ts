@@ -10,6 +10,8 @@ interface PmAuth {
   bearer?: { key: string; value: string }[];
   basic?: { key: string; value: string }[];
   apikey?: { key: string; value: string }[];
+  awsv4?: { key: string; value: string }[];
+  digest?: { key: string; value: string }[];
 }
 interface PmBody {
   mode?: 'raw' | 'urlencoded' | 'formdata' | 'graphql' | 'file';
@@ -87,6 +89,20 @@ function toAuth(auth?: PmAuth): AuthConfig {
         type: 'apikey',
         apikey: { key: find(auth.apikey, 'key'), value: find(auth.apikey, 'value'), in: (find(auth.apikey, 'in') as 'header' | 'query') || 'header' },
       };
+    case 'awsv4':
+      return {
+        ...emptyAuth('awsv4'),
+        type: 'awsv4',
+        awsv4: {
+          accessKey: find(auth.awsv4, 'accessKey'),
+          secretKey: find(auth.awsv4, 'secretKey'),
+          sessionToken: find(auth.awsv4, 'sessionToken'),
+          region: find(auth.awsv4, 'region') || 'us-east-1',
+          service: find(auth.awsv4, 'service'),
+        },
+      };
+    case 'digest':
+      return { ...emptyAuth('digest'), type: 'digest', digest: { username: find(auth.digest, 'username'), password: find(auth.digest, 'password') } };
     case 'noauth':
       return emptyAuth('none');
     default:

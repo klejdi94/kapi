@@ -30,6 +30,8 @@ export type AuthType =
   | 'apikey'
   | 'jwt'
   | 'oauth2'
+  | 'awsv4'
+  | 'digest'
   | 'custom';
 
 export interface AuthConfig {
@@ -65,6 +67,10 @@ export interface AuthConfig {
     expiresAt?: number;
     refreshToken?: string;
   };
+  /** AWS Signature Version 4 — signed locally over the final request, right before it's sent. */
+  awsv4?: { accessKey: string; secretKey: string; sessionToken: string; region: string; service: string };
+  /** HTTP Digest (RFC 7616) — answered automatically when the server replies 401 with a Digest challenge. */
+  digest?: { username: string; password: string };
   custom?: { header: string; value: string };
 }
 

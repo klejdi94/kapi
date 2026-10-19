@@ -11,6 +11,8 @@ export const AUTH_LABELS: Record<AuthType, string> = {
   apikey: 'API key',
   jwt: 'JWT bearer',
   oauth2: 'OAuth 2.0',
+  awsv4: 'AWS Signature',
+  digest: 'Digest auth',
   custom: 'Custom header',
 };
 
@@ -106,6 +108,18 @@ export async function applyAuth(auth: AuthConfig, scope: VarScope): Promise<Appl
       headers.push(kv({ key: 'Authorization', value: `${prefix}${token}`, auto: true }));
       break;
     }
+    // Both of these depend on more than the auth config — the final request for
+    // SigV4, the server's challenge for Digest — so send.ts applies them; this
+    // only reports what's missing up front.
+    case 'awsv4': {
+      if (!r(auth.awsv4?.accessKey) || !r(auth.awsv4?.secretKey)) return { headers, params, warning: 'No access key or secret key set — the request was not signed.' };
+      if (!r(auth.awsv4?.region) || !r(auth.awsv4?.service)) return { headers, params, warning: 'Set a region and a service name to sign the request.' };
+      break;
+    }
+    case 'digest': {
+      if (!r(auth.digest?.username)) return { headers, params, warning: 'No username set — a Digest challenge will not be answered.' };
+      break;
+    }
     case 'custom': {
       const name = r(auth.custom?.header);
       if (!name) return { headers, params, warning: 'No header name set — nothing was added to the request.' };
@@ -129,6 +143,8 @@ export function authStrings(auth: AuthConfig): string[] {
     case 'apikey': return [auth.apikey?.key ?? '', auth.apikey?.value ?? ''];
     case 'jwt': return [auth.jwt?.secret ?? '', auth.jwt?.payload ?? ''];
     case 'oauth2': return [auth.oauth2?.accessToken ?? ''];
+    case 'awsv4': return [auth.awsv4?.accessKey ?? '', auth.awsv4?.secretKey ?? '', auth.awsv4?.sessionToken ?? '', auth.awsv4?.region ?? '', auth.awsv4?.service ?? ''];
+    case 'digest': return [auth.digest?.username ?? '', auth.digest?.password ?? ''];
     case 'custom': return [auth.custom?.header ?? '', auth.custom?.value ?? ''];
     default: return [];
   }

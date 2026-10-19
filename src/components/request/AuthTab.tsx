@@ -8,6 +8,7 @@ import { useTokenInspector } from '@/store/tokenInspector';
 import { fetchOAuthToken, refreshOAuthToken, cancelAuthorizationCode, OAUTH_REDIRECT_URI } from '@/lib/oauth2';
 import type { VarScope } from '@/lib/variables';
 import { toast } from '@/lib/toast';
+import { emptyAuth } from '@/lib/factory';
 
 function InspectLink({ value }: { value: string }) {
   if (!value.trim()) return null;
@@ -22,7 +23,9 @@ function InspectLink({ value }: { value: string }) {
   );
 }
 
-const TYPES: AuthType[] = ['inherit', 'none', 'bearer', 'basic', 'apikey', 'jwt', 'oauth2', 'custom'];
+const TYPES: AuthType[] = ['inherit', 'none', 'bearer', 'basic', 'apikey', 'jwt', 'oauth2', 'awsv4', 'digest', 'custom'];
+
+const INPUT = 'h-8 w-full rounded-md border border-line bg-surface px-2.5 font-mono text-[12.5px] focus:border-accent focus:outline-none';
 
 export function AuthTab({
   auth,
@@ -313,6 +316,55 @@ export function AuthTab({
             </p>
           </div>
         )}
+
+        {auth.type === 'awsv4' && (() => {
+          // Requests saved before this auth type existed have no awsv4 block yet.
+          const aws = auth.awsv4 ?? emptyAuth().awsv4!;
+          const update = (patch: Partial<typeof aws>) => set('awsv4', { ...aws, ...patch });
+          return (
+            <div className="grid max-w-lg grid-cols-1 gap-3">
+              <Field label="Access key ID">
+                <input value={aws.accessKey} onChange={(e) => update({ accessKey: e.target.value })} placeholder="{{awsAccessKeyId}}" className={INPUT} />
+              </Field>
+              <Field label="Secret access key">
+                <input type="password" value={aws.secretKey} onChange={(e) => update({ secretKey: e.target.value })} placeholder="{{awsSecretAccessKey}}" className={INPUT} />
+              </Field>
+              <Field label="Session token" hint="Only for temporary credentials (STS, SSO).">
+                <input type="password" value={aws.sessionToken} onChange={(e) => update({ sessionToken: e.target.value })} placeholder="optional" className={INPUT} />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Region">
+                  <input value={aws.region} onChange={(e) => update({ region: e.target.value })} placeholder="us-east-1" className={INPUT} />
+                </Field>
+                <Field label="Service" hint="e.g. execute-api, s3, lambda, es">
+                  <input value={aws.service} onChange={(e) => update({ service: e.target.value })} placeholder="execute-api" className={INPUT} />
+                </Field>
+              </div>
+              <p className="text-[11px] leading-relaxed text-faint">
+                Signed locally with Signature Version 4 over the final URL, headers and body, right before the request is sent —
+                the secret key never leaves this machine. Keep the keys in secret variables so they're encrypted at rest.
+              </p>
+            </div>
+          );
+        })()}
+
+        {auth.type === 'digest' && (() => {
+          const digest = auth.digest ?? emptyAuth().digest!;
+          return (
+            <div className="grid max-w-sm grid-cols-1 gap-3">
+              <Field label="Username">
+                <input value={digest.username} onChange={(e) => set('digest', { ...digest, username: e.target.value })} className={INPUT} />
+              </Field>
+              <Field label="Password">
+                <input type="password" value={digest.password} onChange={(e) => set('digest', { ...digest, password: e.target.value })} className={INPUT} />
+              </Field>
+              <p className="text-[11px] leading-relaxed text-faint">
+                The first request goes out without credentials; when the server answers 401 with a Digest challenge, kapi
+                answers it (MD5 or SHA-256, qop=auth) and retries once.
+              </p>
+            </div>
+          );
+        })()}
 
         {auth.type === 'custom' && (
           <div className="grid max-w-sm grid-cols-1 gap-3">

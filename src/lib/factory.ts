@@ -62,6 +62,8 @@ export function emptyAuth(type: AuthConfig['type'] = 'none'): AuthConfig {
       redirectUri: 'http://127.0.0.1:17872/callback',
       clientAuth: 'body',
     },
+    awsv4: { accessKey: '', secretKey: '', sessionToken: '', region: 'us-east-1', service: 'execute-api' },
+    digest: { username: '', password: '' },
     custom: { header: '', value: '' },
   };
 }

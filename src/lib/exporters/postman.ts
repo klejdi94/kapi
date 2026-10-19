@@ -31,6 +31,19 @@ function authToPostman(auth: AuthConfig): unknown {
           { key: 'in', value: auth.apikey?.in ?? 'header', type: 'string' },
         ],
       };
+    case 'awsv4':
+      return {
+        type: 'awsv4',
+        awsv4: (['accessKey', 'secretKey', 'sessionToken', 'region', 'service'] as const).map((key) => ({ key, value: auth.awsv4?.[key] ?? '', type: 'string' })),
+      };
+    case 'digest':
+      return {
+        type: 'digest',
+        digest: [
+          { key: 'username', value: auth.digest?.username ?? '', type: 'string' },
+          { key: 'password', value: auth.digest?.password ?? '', type: 'string' },
+        ],
+      };
     case 'none':
       return { type: 'noauth' };
     default:
