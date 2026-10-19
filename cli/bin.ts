@@ -3,7 +3,8 @@
  * The `kapi` command published to npm (`npx kapi …`): the headless collection
  * runner and the MCP server, without cloning the repo.
  *
- *   kapi run <collection.json> [options]   — see cli/kapi-run.ts
+ *   kapi run <collection.json> [options]   — functional run (see cli/kapi-run.ts)
+ *   kapi load <collection.json> [options]  — load test with concurrent virtual users
  *   kapi mcp                               — start the MCP server on stdio
  *   kapi mcp install                       — register it with claude/codex/gemini
  *
@@ -16,17 +17,25 @@ import { KAPI_VERSION } from '@/version';
 const USAGE = `kapi ${KAPI_VERSION} — local-first API client, headless
 
 Usage:
-  kapi run <collection.json> [--env <file.json>] [--folder <name|id>]
-           [--iterations <n>] [--data <file.csv>] [--delay <ms>] [--json]
+  kapi run <collection.json> [options]     Run every request and its tests once (or N times)
+  kapi load <collection.json> [options]    Load test with concurrent virtual users
   kapi mcp            Start kapi's MCP server (stdio) for an AI CLI
   kapi mcp install    Register that server with claude / codex / gemini
   kapi --version
+
+Options for run and load:
+  --env <file>  --globals <file>  --folder <name|id>  --data <file.csv>  --json  --no-cookies
+run:   --iterations <n>  --delay <ms>  --export-environment <file>  --export-globals <file>
+load:  --vus <n>  --duration 30s  --iterations <n>  --ramp-up 10s  --think <ms>  --no-scripts
+       --threshold p95<500  (repeatable; metrics p50 p90 p95 p99 max mean errors rps)
+
+Exit codes: 0 all passed, 1 test or threshold failure, 2 usage/config problem.
 
 Desktop app: https://github.com/klejdi94/kapi/releases/latest`;
 
 const [command, sub] = process.argv.slice(2);
 
-if (command === 'run') {
+if (command === 'run' || command === 'load') {
   await import('./kapi-run.ts');
 } else if (command === 'mcp' && sub === 'install') {
   const { installMcp } = await import('../mcp/install.ts');

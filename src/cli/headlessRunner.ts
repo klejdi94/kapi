@@ -1,4 +1,4 @@
-import type { Collection, Environment, KV, RequestNode, Workspace } from '@/types';
+import type { Collection, Environment, KV, RequestDef, RequestNode, RunResult, Workspace } from '@/types';
 import { buildScope, type VarScope } from '@/lib/variables';
 import { resolveInherited } from '@/lib/inherit';
 import { ancestorsOf, locate, walk } from '@/lib/tree';
@@ -52,16 +52,34 @@ export function headlessTargetsFor(collection: Collection, scopeNodeId: string |
  * here. Doesn't touch a cookie jar or persist anything to disk; a `--env`
  * file's edits (e.g. a login setting a token) live only for this run.
  */
-export async function runHeadless(opts: {
+export interface HeadlessOptions {
   collection: Collection;
   globals: KV[];
   environment: Environment | null;
   targets: HeadlessTarget[];
+  /** `Infinity` runs until `shouldContinue` says stop (the load tester's duration mode). */
   iterations: number;
   dataRows: Record<string, string>[];
   delayMs: number;
   onResult: (result: HeadlessResult) => void;
-}): Promise<void> {
+  /** Checked before every request; a load test uses it for its deadline and Stop button. */
+  shouldContinue?: () => boolean;
+  /** Defaults to kapi's normal send; the CLI wraps it with a cookie jar. */
+  sendFn?: (request: RequestDef, scope: VarScope) => Promise<RunResult>;
+  /** Pre-request and test scripts run unless this is false (a load test can skip them for raw throughput). */
+  runScripts?: boolean;
+  /** Mirrors the GUI's `pm.info.iterationCount` when `iterations` is open-ended. */
+  iterationOffset?: number;
+}
+
+/** The variable scopes as the run left them — what `--export-environment` / `--export-globals` write out. */
+export interface HeadlessFinalState {
+  globals: KV[];
+  environment: Environment;
+  collectionVariables: KV[];
+}
+
+export async function runHeadless(opts: HeadlessOptions): Promise<HeadlessFinalState> {
   let globals = opts.globals;
   // A placeholder when no --env was given, purely so `pm.environment.set(...)`
   // (e.g. a login response handing a token to the requests after it) has
@@ -70,13 +88,17 @@ export async function runHeadless(opts: {
   let environment: Environment = opts.environment ?? { id: 'headless', name: 'headless', variables: [] };
   let collectionVars = opts.collection.variables;
   const iterationCount = Math.max(1, opts.iterations);
+  const keepGoing = opts.shouldContinue ?? (() => true);
+  const sendFn = opts.sendFn ?? ((request: RequestDef, scope: VarScope) => send(request, scope, {}));
+  const noScripts = opts.runScripts === false;
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  for (let iteration = 0; iteration < iterationCount; iteration++) {
+  outer: for (let iteration = 0; iteration < iterationCount; iteration++) {
     const dataRow = opts.dataRows.length ? opts.dataRows[iteration % opts.dataRows.length] : null;
 
     for (const target of opts.targets) {
+      if (!keepGoing()) break outer;
       const resolved = resolveInherited(target.node.request, opts.collection, ancestorsOf(opts.collection.items, target.node.id));
       const startVars: ScriptVars = { environment: environment.variables, globals, collectionVariables: collectionVars };
       const scopeFor = (): VarScope => {
@@ -92,12 +114,21 @@ export async function runHeadless(opts: {
         return built;
       };
 
-      const info = { requestName: target.node.name, requestId: target.node.id, iteration, iterationCount };
+      const info = {
+        requestName: target.node.name,
+        requestId: target.node.id,
+        iteration: iteration + (opts.iterationOffset ?? 0),
+        iterationCount: Number.isFinite(iterationCount) ? iterationCount : 0,
+      };
       const scriptBase = { request: scriptRequestOf(resolved), environmentName: environment.name, iterationData: dataRow ?? undefined, info };
-      const scriptSender = makeScriptSender((r, s) => send(r, s, {}), scopeFor(), resolved);
-      const pre = await chainScripts([opts.collection.preRequestScript, resolved.preRequestScript], startVars, scriptBase, 'prerequest', {
-        sendRequest: scriptSender,
-      });
+      const scriptSender = makeScriptSender(sendFn, scopeFor(), resolved);
+      const pre = await chainScripts(
+        noScripts ? [] : [opts.collection.preRequestScript, resolved.preRequestScript],
+        startVars,
+        scriptBase,
+        'prerequest',
+        { sendRequest: scriptSender },
+      );
       if (pre.ran) {
         globals = pre.vars.globals;
         environment = { ...environment, variables: pre.vars.environment };
@@ -107,7 +138,7 @@ export async function runHeadless(opts: {
       const scope = scopeFor();
 
       const started = performance.now();
-      const result = await send(request, scope, {});
+      const result = await sendFn(request, scope);
       const durationMs = performance.now() - started;
       const base = { iteration, name: target.node.name, path: target.path, method: request.method, url: request.url, durationMs };
 
@@ -118,7 +149,7 @@ export async function runHeadless(opts: {
       }
 
       const post = await chainScripts(
-        [opts.collection.testScript, request.testScript],
+        noScripts ? [] : [opts.collection.testScript, request.testScript],
         pre.vars,
         { ...scriptBase, request: pre.request, response: responseToScriptInput(result.response) },
         'test',
@@ -142,4 +173,5 @@ export async function runHeadless(opts: {
       if (opts.delayMs > 0) await sleep(opts.delayMs);
     }
   }
+  return { globals, environment, collectionVariables: collectionVars };
 }

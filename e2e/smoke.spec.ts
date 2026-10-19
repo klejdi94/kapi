@@ -38,3 +38,19 @@ test('renders without errors in the console', async ({ page }) => {
   await expect(page.getByText('Getting started')).toBeVisible();
   expect(problems).toEqual([]);
 });
+
+test('runs a short load test from the Runner', async ({ page }) => {
+  // The collection page has the Run button; clicking the collection name opens it.
+  await page.getByText('Getting started', { exact: true }).first().click();
+  await page.getByRole('button', { name: /^Run/ }).first().click();
+  await page.getByRole('tab', { name: 'Load test' }).click();
+  await page.getByRole('tab', { name: 'For N iterations' }).click();
+  await page.getByLabel('Virtual users').fill('2');
+  await page.getByLabel('Iterations / user').fill('1');
+  await page.getByRole('button', { name: 'Start load test' }).click();
+  // Outside the desktop shell the requests may fail (CORS, no network) —
+  // what matters here is that every one of them is accounted for.
+  await expect(page.getByRole('button', { name: 'New test' })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText('Requests', { exact: true })).toBeVisible();
+  await expect(page.getByText('Req/s', { exact: true })).toBeVisible();
+});

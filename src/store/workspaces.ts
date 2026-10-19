@@ -4,6 +4,7 @@ import type { Collection, Environment, KV, MockServerConfig, RequestDef, StoredC
 import { newCollection, newEnvironment, newWorkspace, seedWorkspace, uid, kv } from '@/lib/factory';
 import { deepClone, insertNode, locate, mapNode, reidentify, removeNode, setAllExpanded } from '@/lib/tree';
 import { vaultedStorage } from '@/lib/vaultedStorage';
+import { mergeCookies } from '@/lib/cookieJar';
 
 interface WorkspaceState {
   workspaces: Workspace[];
@@ -255,17 +256,7 @@ export const useWorkspaces = create<WorkspaceState>()(
         setGlobals: (variables) => patchActive((ws) => ({ ...ws, globals: variables })),
 
         addCookies: (cookies) =>
-          patchActive((ws) => {
-            const now = Date.now();
-            const alive = (ws.cookies ?? []).filter((c) => c.expires === null || c.expires > now);
-            const merged = [...alive];
-            for (const cookie of cookies) {
-              const idx = merged.findIndex((c) => c.name === cookie.name && c.domain === cookie.domain && c.path === cookie.path);
-              if (idx === -1) merged.push(cookie);
-              else merged[idx] = cookie;
-            }
-            return { ...ws, cookies: merged };
-          }),
+          patchActive((ws) => ({ ...ws, cookies: mergeCookies(ws.cookies ?? [], cookies) })),
 
         deleteCookie: (name, domain, path) =>
           patchActive((ws) => ({ ...ws, cookies: (ws.cookies ?? []).filter((c) => !(c.name === name && c.domain === domain && c.path === path)) })),

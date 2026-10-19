@@ -69,3 +69,14 @@ export function cookieHeaderFor(cookies: StoredCookie[], url: string): string | 
   if (!matching.length) return null;
   return matching.map((c) => `${c.name}=${c.value}`).join('; ');
 }
+
+/** Adds or replaces cookies by name + domain + path, dropping any that have expired. */
+export function mergeCookies(existing: StoredCookie[], incoming: StoredCookie[], now = Date.now()): StoredCookie[] {
+  const merged = existing.filter((c) => c.expires === null || c.expires > now);
+  for (const cookie of incoming) {
+    const idx = merged.findIndex((c) => c.name === cookie.name && c.domain === cookie.domain && c.path === cookie.path);
+    if (idx === -1) merged.push(cookie);
+    else merged[idx] = cookie;
+  }
+  return merged.filter((c) => c.expires === null || c.expires > now);
+}

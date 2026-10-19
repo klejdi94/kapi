@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import { FileDown, FileUp, Play, Square, X } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
-import { Button, IconButton, Field, Input } from '@/components/ui/primitives';
+import { Button, IconButton, Field, Input, Segmented } from '@/components/ui/primitives';
+import { LoadTestView } from './LoadTestView';
 import { useActiveWorkspace, findCollection } from '@/store/workspaces';
 import { useRunner } from '@/store/runner';
 import { useRunHistory } from '@/store/runHistory';
@@ -70,6 +71,7 @@ export function RunnerPanel() {
   const addResult = useRunner((s) => s.addResult);
   const finish = useRunner((s) => s.finish);
 
+  const [mode, setMode] = useState<'run' | 'load'>('run');
   const [iterations, setIterations] = useState(1);
   const [delayMs, setDelayMs] = useState(0);
   const [dataRows, setDataRows] = useState<Record<string, string>[]>([]);
@@ -186,7 +188,21 @@ export function RunnerPanel() {
   };
 
   return (
-    <Modal open onClose={close} title={`Run — ${collection.name}${scopeNodeId ? ' (folder)' : ''}`} width={620}>
+    <Modal open onClose={close} title={`Run — ${collection.name}${scopeNodeId ? ' (folder)' : ''}`} width={mode === 'load' ? 720 : 620}>
+      {!running && (
+        <Segmented
+          className="mb-3"
+          value={mode}
+          onChange={setMode}
+          options={[
+            { value: 'run', label: 'Run' },
+            { value: 'load', label: 'Load test' },
+          ]}
+        />
+      )}
+      {mode === 'load' ? (
+        <LoadTestView collection={collection} scopeNodeId={scopeNodeId} />
+      ) : (
       <div className="flex flex-col gap-3">
         <p className="text-[11.5px] leading-relaxed text-faint">
           Runs {targets.length} request{targets.length === 1 ? '' : 's'}
@@ -276,6 +292,7 @@ export function RunnerPanel() {
           )}
         </div>
       </div>
+      )}
     </Modal>
   );
 }
