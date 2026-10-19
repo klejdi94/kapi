@@ -11,7 +11,10 @@ All notable changes to kapi. Versions follow [semver](https://semver.org).
 - On Windows, prompts to the AI CLIs could be interpreted by `cmd.exe`; they now go over stdin.
 - The webview runs under a Content-Security-Policy, and `git` can only be run with the exact
   arguments kapi uses.
-- Secret variables are encrypted at rest with a key stored in the OS keychain.
+- Secret variables and auth credentials (tokens, passwords, API keys, AWS secret keys…) are encrypted
+  at rest with a key stored in the OS keychain — in the workspace file, open tabs and history.
+- Git snapshots no longer contain literal auth credentials or secret-flagged collection variables;
+  pulling keeps your local values.
 
 ### Added
 - **gRPC**: schemas from server reflection or `.proto` files (compiled in-app, imports included),

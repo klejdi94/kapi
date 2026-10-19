@@ -86,6 +86,20 @@ try:
     d.save_screenshot(f'{SHOTS}/http-scripts.png')
     check('pre-request script edits the request and tests pass in the sandbox', True)
 
+    # --- secrets stay out of the files on disk
+    tab('Auth').click()
+    auth_type = wait.until(EC.presence_of_element_located((By.XPATH, "//select[option[@value='bearer']]")))
+    for option in auth_type.find_elements(By.TAG_NAME, 'option'):
+        if option.get_attribute('value') == 'bearer':
+            option.click()
+    token = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@placeholder='{{token}}']")))
+    token.send_keys('e2e-super-secret-token')
+    time.sleep(2.5)  # debounced saves
+    data_dir = os.path.join(os.environ['XDG_DATA_HOME'], 'com.klejdi94.kapi')
+    files = {name: open(os.path.join(data_dir, name)).read() for name in os.listdir(data_dir) if name.endswith('.json')}
+    leaked = [name for name, text in files.items() if 'e2e-super-secret-token' in text]
+    check('a typed token is saved only to the encrypted vault', not leaked and 'kapi.secrets.json' in files, f'leaked into {leaked}, files {sorted(files)}')
+
     # --- gRPC
     d.find_element(By.TAG_NAME, 'body').send_keys(Keys.CONTROL, 'k')
     time.sleep(0.4)
