@@ -1,5 +1,6 @@
 import vm from 'node:vm';
 import { createKapiRuntime } from './runtime';
+import { SANDBOX_LIB_SOURCES } from './sandboxLibs.generated.js';
 import { parseSandboxMessage, timeoutOutput, type ScriptSandbox, type SandboxOutput } from './sandbox';
 
 /**
@@ -37,14 +38,24 @@ export const nodeSandbox: ScriptSandbox = {
       // `__name` is a no-op stand-in for the helper some transpilers (tsx/esbuild
       // with keepNames) insert into function bodies — the runtime's source
       // would otherwise reference a binding that only exists in the host.
+      // Library sources go in one primitive string at a time, into an object
+      // created inside the context — no host object ever becomes reachable.
+      enter('globalThis.__kapiLibs = {}');
+      for (const [name, source] of Object.entries(SANDBOX_LIB_SOURCES)) {
+        (context as Record<string, unknown>).__kapiLibName = name;
+        enter('__kapiLibs[__kapiLibName] = __kapiArg', source);
+      }
+      enter('delete globalThis.__kapiLibName');
       enter(
         `(() => {
           const stringify = JSON.stringify;
           const outbox = [];
+          const libs = globalThis.__kapiLibs;
+          delete globalThis.__kapiLibs;
           const runtime = (function () {
             const __name = (fn) => fn;
             return ${RUNTIME_SOURCE};
-          })()((message) => { outbox.push(message); });
+          })()((message) => { outbox.push(message); }, libs);
           Object.defineProperty(globalThis, '__kapi', {
             value: Object.freeze({
               start: (s) => { runtime.start(s); },

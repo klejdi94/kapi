@@ -22,7 +22,12 @@ os.makedirs(SHOTS, exist_ok=True)
 opts = ArgOptions()
 opts.set_capability('browserName', 'wry')
 opts.set_capability('tauri:options', {'application': APP})
-d = webdriver.Remote(command_executor='http://127.0.0.1:4444', options=opts)
+try:
+    d = webdriver.Remote(command_executor='http://127.0.0.1:4444', options=opts)
+except Exception as exc:  # noqa: BLE001
+    if os.environ.get('GITHUB_ACTIONS'):
+        print(f"::error title=desktop e2e::could not start a WebDriver session: {str(exc)[:800]}")
+    raise
 wait = WebDriverWait(d, 25)
 failures = []
 

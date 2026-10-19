@@ -18,7 +18,7 @@
  *   host → runtime   deliver({id, response} | {id, error})
  *   runtime → host   emit({type:'done', result})
  */
-export function createKapiRuntime(emit: (message: string) => void) {
+export function createKapiRuntime(emit: (message: string) => void, libSources: Record<string, string> = {}) {
   // Captured before any user script runs, so a script that replaces
   // JSON/Object/Promise globals can't change how results are serialised.
   const stringify = JSON.stringify;
@@ -26,6 +26,31 @@ export function createKapiRuntime(emit: (message: string) => void) {
   const keysOf = Object.keys;
   const PromiseCtor = Promise;
   const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+
+  // uuid and friends want crypto.getRandomValues; a Web Worker has it, a bare
+  // vm context doesn't. Random ids don't need a CSPRNG, so fall back to Math.random.
+  const realm: any = globalThis;
+  if (!realm.crypto || typeof realm.crypto.getRandomValues !== 'function') {
+    realm.crypto = {
+      getRandomValues: (array: any) => {
+        for (let i = 0; i < array.length; i++) array[i] = Math.floor(Math.random() * 256);
+        return array;
+      },
+    };
+  }
+
+  // Libraries are evaluated here, in the sandbox's own realm, the first time a
+  // script asks for one — never handed in from the host.
+  const libCache: Record<string, any> = {};
+  const FunctionCtor = Function;
+  function loadLib(name: string): any {
+    if (name in libCache) return libCache[name];
+    const source = libSources[name];
+    if (typeof source !== 'string') return undefined;
+    const value = new FunctionCtor(source + '\n;return __kapiLib;')();
+    libCache[name] = value;
+    return value;
+  }
 
   const pendingSends = new Map<number, (outcome: any) => void>();
   let nextSendId = 1;
@@ -728,17 +753,43 @@ export function createKapiRuntime(emit: (message: string) => void) {
     const unsupported = (name: string) => () => {
       throw new Error(name + ' is not available in kapi scripts');
     };
-    const requireStub = (name: string) => {
-      throw new Error("require('" + name + "') is not available in kapi scripts");
+    const builtins: Record<string, () => any> = {
+      atob: () => base64Decode,
+      btoa: () => base64Encode,
+      chai: () => ({ expect }),
+    };
+    const available = keysOf(libSources).concat(keysOf(builtins)).sort();
+    const sandboxRequire = (name: string) => {
+      const id = String(name);
+      if (id in builtins) return builtins[id]();
+      const lib = loadLib(id);
+      if (lib !== undefined) return lib;
+      throw new Error("require('" + id + "') is not available in kapi scripts. Available: " + available.join(', '));
     };
 
-    const params = ['pm', 'console', 'postman', 'tests', 'require', 'btoa', 'atob', 'responseBody', 'responseCode', 'responseTime', 'responseHeaders', 'setTimeout', 'setInterval', 'fetch'];
+    // Old Postman scripts use these as globals. Only loaded when the script mentions them.
+    const script = String(input.script);
+    const lodashGlobal = /(^|[^\w$.])_\s*\.\s*[A-Za-z]/.test(script) ? loadLib('lodash') : undefined;
+    const cryptoGlobal = /\bCryptoJS\b/.test(script) ? loadLib('crypto-js') : undefined;
+    const xml2Json = (xml: string) => {
+      const xml2js = loadLib('xml2js');
+      let result: any;
+      let failure: any;
+      new xml2js.Parser({ explicitArray: false, async: false }).parseString(String(xml), (err: any, out: any) => {
+        failure = err;
+        result = out;
+      });
+      if (failure) throw failure;
+      return result;
+    };
+
+    const params = ['pm', 'console', 'postman', 'tests', 'require', 'btoa', 'atob', 'responseBody', 'responseCode', 'responseTime', 'responseHeaders', 'setTimeout', 'setInterval', 'fetch', '_', 'CryptoJS', 'xml2Json'];
     const args = [
       pm,
       scriptConsole,
       postman,
       legacyTests,
-      requireStub,
+      sandboxRequire,
       base64Encode,
       base64Decode,
       input.response ? input.response.text : undefined,
@@ -748,11 +799,16 @@ export function createKapiRuntime(emit: (message: string) => void) {
       unsupported('setTimeout'),
       unsupported('setInterval'),
       unsupported('fetch (use pm.sendRequest)'),
+      lodashGlobal,
+      cryptoGlobal,
+      xml2Json,
     ];
 
     let scriptPromise: Promise<any>;
     try {
-      const fn = new AsyncFunction(...params, '"use strict";\n' + String(input.script));
+      // The script runs in its own block, so `const _ = require('lodash')` can
+      // shadow the legacy globals passed in as parameters instead of clashing.
+      const fn = new AsyncFunction(...params, '"use strict";\n{\n' + script + '\n}');
       scriptPromise = fn(...args);
     } catch (err) {
       scriptPromise = PromiseCtor.reject(err);

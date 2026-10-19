@@ -18,7 +18,7 @@ The script runs in a sandbox with a Postman-compatible \`pm\` object:
 - console.log(...)
 
 Rules:
-- Use ONLY the API listed above. There is no require(), no lodash, no setTimeout.
+- Use ONLY the API listed above (require() works only for lodash, crypto-js, moment, uuid and xml2js). There is no setTimeout.
 - Write 3-6 assertions that would catch a real regression: status code, a content-type header, the shape of the body (field presence and types), and response time when it is meaningfully fast.
 - Assert on structure and types, never on volatile exact values like timestamps, generated ids, or counts that will change between runs.
 - Every assertion goes inside pm.test('descriptive name', () => { ... }).

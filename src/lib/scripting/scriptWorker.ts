@@ -1,5 +1,6 @@
 /// <reference lib="webworker" />
 import { createKapiRuntime } from './runtime';
+import { SANDBOX_LIB_SOURCES } from './sandboxLibs.generated.js';
 
 /**
  * One worker per script run. A Web Worker gets none of the Tauri IPC bridge
@@ -9,7 +10,7 @@ import { createKapiRuntime } from './runtime';
  * worker as soon as the run is done or the time budget is up.
  */
 const scope = self as unknown as DedicatedWorkerGlobalScope;
-const runtime = createKapiRuntime((message) => scope.postMessage(message));
+const runtime = createKapiRuntime((message) => scope.postMessage(message), SANDBOX_LIB_SOURCES);
 
 scope.onmessage = (event: MessageEvent<{ kind: 'start' | 'deliver'; payload: string }>) => {
   const { kind, payload } = event.data ?? ({} as { kind?: string; payload?: string });

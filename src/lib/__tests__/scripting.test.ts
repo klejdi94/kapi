@@ -186,11 +186,6 @@ describe('pm API', () => {
     ]);
   });
 
-  it('gives a clear error for require()', async () => {
-    const result = await runScript(`const _ = require('lodash');`, 'prerequest', base());
-    expect(result.error).toMatch(/require\('lodash'\) is not available/);
-  });
-
   it('keeps disabled variables instead of dropping them', async () => {
     const result = await runScript(`pm.environment.set('a', '2');`, 'prerequest', base({ environment: [kv({ key: 'off', value: 'x', enabled: false }), kv({ key: 'a', value: '1' })] }));
     expect(result.environment.map((r) => [r.key, r.value, r.enabled])).toEqual([
@@ -202,5 +197,57 @@ describe('pm API', () => {
   it('waits for async tests', async () => {
     const result = await runScript(`pm.test('later', async () => { await null; pm.expect(1).to.equal(2); });`, 'test', base({ response: response() }));
     expect(result.tests).toEqual([{ name: 'later', passed: false, error: 'AssertionError: expected 1 to equal 2' }]);
+  });
+
+  it('provides the libraries Postman scripts require', async () => {
+    const script = `
+      const _ = require('lodash');
+      const CryptoJS = require('crypto-js');
+      const moment = require('moment');
+      const uuid = require('uuid');
+      const xml2js = require('xml2js');
+      pm.environment.set('sum', _.sum([1, 2, 3]));
+      pm.environment.set('hmac', CryptoJS.HmacSHA256('message', 'secret').toString(CryptoJS.enc.Hex));
+      pm.environment.set('b64', CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse('kapi')));
+      pm.environment.set('date', moment.utc('2024-01-02T03:04:05Z').format('YYYY/MM/DD'));
+      pm.environment.set('uuid', uuid.v4());
+      xml2js.parseString('<a><b>1</b></a>', (err, out) => pm.environment.set('xml', JSON.stringify(out)));
+    `;
+    const result = await runScript(script, 'prerequest', base());
+    expect(result.error).toBeNull();
+    const env = Object.fromEntries(result.environment.map((r) => [r.key, r.value]));
+    expect(env.sum).toBe('6');
+    expect(env.hmac).toBe('8b5f48702995c1598c573db1e21866a9b825d4a794d169d7060a03605796360b');
+    expect(env.b64).toBe('a2FwaQ==');
+    expect(env.date).toBe('2024/01/02');
+    expect(env.uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(JSON.parse(env.xml)).toEqual({ a: { b: ['1'] } });
+  });
+
+  it('supports the legacy _, CryptoJS and xml2Json globals', async () => {
+    const script = `
+      pm.environment.set('first', _.first([9, 8]));
+      pm.environment.set('md5', CryptoJS.MD5('kapi').toString());
+      pm.environment.set('xml', xml2Json('<root><id>7</id></root>').root.id);
+    `;
+    const result = await runScript(script, 'test', base({ response: response() }));
+    expect(result.error).toBeNull();
+    const env = Object.fromEntries(result.environment.map((r) => [r.key, r.value]));
+    expect(env).toMatchObject({ first: '9', md5: 'e88ddd16d38714e30e6d73592bb16622', xml: '7' });
+  });
+
+  it('keeps libraries inside the sandbox realm', async () => {
+    const script = `
+      const _ = require('lodash');
+      const P = _.constructor.constructor('return typeof process')();
+      pm.environment.set('p', P);
+    `;
+    const result = await runScript(script, 'prerequest', base());
+    expect(result.environment.find((r) => r.key === 'p')?.value).toBe('undefined');
+  });
+
+  it('lists what is available when a module is missing', async () => {
+    const result = await runScript(`require('left-pad')`, 'prerequest', base());
+    expect(result.error).toMatch(/left-pad.*Available: atob, btoa, chai, crypto-js, lodash, moment, uuid, xml2js/);
   });
 });

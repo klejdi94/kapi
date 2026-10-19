@@ -109,7 +109,7 @@ jobs:
         if: failure()
         with:
           name: desktop-e2e-screenshots
-          path: e2e/desktop/shots*
+          path: e2e/desktop/shots
           retention-days: 7
 
   rust:
