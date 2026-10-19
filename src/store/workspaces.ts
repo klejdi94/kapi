@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Collection, Environment, KV, MockServerConfig, RequestDef, StoredCookie, TreeNode, WebSocketRequestDef, Workspace } from '@/types';
 import { newCollection, newEnvironment, newWorkspace, seedWorkspace, uid, kv } from '@/lib/factory';
 import { deepClone, insertNode, locate, mapNode, reidentify, removeNode, setAllExpanded } from '@/lib/tree';
-import { fileJSONStorage } from '@/lib/fileStorage';
+import { vaultedStorage } from '@/lib/vaultedStorage';
 
 interface WorkspaceState {
   workspaces: Workspace[];
@@ -296,7 +296,8 @@ export const useWorkspaces = create<WorkspaceState>()(
     {
       name: 'kapi.workspaces',
       version: 1,
-      storage: createJSONStorage(() => fileJSONStorage),
+      // Secret-flagged variables go to the encrypted vault, not this file.
+      storage: createJSONStorage(() => vaultedStorage),
     },
   ),
 );

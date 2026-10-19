@@ -51,6 +51,7 @@
     "allow-kapi-oauth-cancel",
     "allow-kapi-send-mtls",
     "allow-kapi-ai-list-available",
-    "allow-kapi-ai-prompt"
+    "allow-kapi-ai-prompt",
+    "allow-kapi-secrets-key"
   ]
 }

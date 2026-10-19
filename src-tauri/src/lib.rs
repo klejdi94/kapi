@@ -7,11 +7,13 @@ mod discovery;
 mod mock;
 mod mtls;
 mod oauth;
+mod secrets;
 use ai_cli::{kapi_ai_list_available, kapi_ai_prompt};
 use discovery::{kapi_discovery_report, kapi_open_discovery};
 use mock::{kapi_mock_is_running, kapi_mock_start, kapi_mock_stop, MockState};
 use mtls::kapi_send_mtls;
 use oauth::{kapi_oauth_cancel, kapi_oauth_listen, OAuthListenState};
+use secrets::kapi_secrets_key;
 
 /// Writes `contents` to `target` so a crash, power cut or full disk can never
 /// leave a half-written file behind: the bytes go to a sibling temp file,
@@ -97,7 +99,8 @@ pub fn run() {
       kapi_oauth_cancel,
       kapi_send_mtls,
       kapi_ai_list_available,
-      kapi_ai_prompt
+      kapi_ai_prompt,
+      kapi_secrets_key
     ])
     .on_menu_event(|app, event| {
       appmenu::handle_event(app, event.id().as_ref());

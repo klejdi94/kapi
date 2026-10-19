@@ -1,11 +1,13 @@
 import { isDesktop } from './transport';
 import { flushPendingWrites } from './fileStorage';
+import { vaultSavesSettled } from './vaultedStorage';
 
 /** Long enough for a few local JSON writes; short enough that a stuck write never traps the user in the app. */
 const FLUSH_BUDGET_MS = 3000;
 
 function flushWithBudget(): Promise<void> {
-  return Promise.race([flushPendingWrites(), new Promise<void>((resolve) => setTimeout(resolve, FLUSH_BUDGET_MS))]);
+  const flushed = vaultSavesSettled().then(() => flushPendingWrites());
+  return Promise.race([flushed, new Promise<void>((resolve) => setTimeout(resolve, FLUSH_BUDGET_MS))]);
 }
 
 /**

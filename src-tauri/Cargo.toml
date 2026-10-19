@@ -38,6 +38,11 @@ tiny_http = "0.12.0"
 # a plain cert+key PEM bundle, same version reqwest is already pinned to
 # transitively — Cargo unifies them rather than linking two TLS stacks.
 reqwest = { version = "0.12.28", default-features = false, features = ["blocking", "rustls-tls", "multipart"] }
+# The key that encrypts secret variables at rest lives in the OS credential
+# store (macOS Keychain, Windows Credential Manager, Secret Service on Linux).
+# The pure-Rust D-Bus backend avoids a libdbus build dependency on Linux.
+keyring = { version = "3", features = ["apple-native", "windows-native", "async-secret-service", "tokio", "crypto-rust"] }
+getrandom = "0.2"
 
 [dev-dependencies]
 regex = "1"

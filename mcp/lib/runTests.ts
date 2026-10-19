@@ -3,6 +3,7 @@ import { headlessTargetsFor, runHeadless, type HeadlessResult } from '@/cli/head
 import { uid } from '@/lib/factory';
 import { updateStore, STORE_RUN_HISTORY } from './fileStore.ts';
 import { findCollectionAndWorkspace, readWorkspaceState } from './workspaceOps.ts';
+import { withSecrets } from './secrets.ts';
 import { locate } from '@/lib/tree';
 
 const MAX_RUN_HISTORY = 200;
@@ -24,6 +25,8 @@ export interface RunTestsOutput {
   errored: number;
   durationMs: number;
   results: HeadlessResult[];
+  /** Set when secret variables couldn't be read from the encrypted store, so requests that need them may fail. */
+  warning?: string;
 }
 
 function toRunHistoryResult(r: HeadlessResult): RunHistoryResult {
@@ -50,7 +53,8 @@ function toRunHistoryResult(r: HeadlessResult): RunHistoryResult {
  * person triggered by hand.
  */
 export async function runTests(input: RunTestsInput): Promise<RunTestsOutput | { error: string }> {
-  const state = await readWorkspaceState();
+  // Secret values live in kapi's encrypted vault, not the workspace file.
+  const { state, missing } = await withSecrets(await readWorkspaceState());
   const found = findCollectionAndWorkspace(state, input.collectionId);
   if (!found) return { error: `No collection with id "${input.collectionId}" was found.` };
   const { collection, workspace } = found;
@@ -118,5 +122,8 @@ export async function runTests(input: RunTestsInput): Promise<RunTestsOutput | {
     entries: [entry, ...s.entries].slice(0, MAX_RUN_HISTORY),
   }));
 
-  return { collectionName: collection.name, scopeName, passed, failed, errored, durationMs, results };
+  const warning = missing
+    ? `${missing} secret variable${missing === 1 ? '' : 's'} couldn't be read from kapi's encrypted store (the OS keychain didn't hand over the key), so ${missing === 1 ? 'it was' : 'they were'} empty for this run.`
+    : undefined;
+  return { collectionName: collection.name, scopeName, passed, failed, errored, durationMs, results, ...(warning ? { warning } : {}) };
 }

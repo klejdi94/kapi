@@ -242,7 +242,7 @@ server.registerTool(
     const result = await runTests(input);
     if ('error' in result) return errorText(result.error);
     const summary = `${result.collectionName}${result.scopeName ? ` / ${result.scopeName}` : ''}: ${result.passed} passed, ${result.failed} failed, ${result.errored} errored, in ${result.durationMs}ms.`;
-    return text(`${summary}\n${RELOAD_HINT}\n\n${JSON.stringify(result.results, null, 2)}`);
+    return text(`${summary}${result.warning ? `\nWarning: ${result.warning}` : ''}\n${RELOAD_HINT}\n\n${JSON.stringify(result.results, null, 2)}`);
   },
 );
 

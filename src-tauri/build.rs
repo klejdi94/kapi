@@ -21,6 +21,7 @@ fn main() {
             "kapi_send_mtls",
             "kapi_ai_list_available",
             "kapi_ai_prompt",
+            "kapi_secrets_key",
         ])),
     )
     .expect("failed to run tauri-build");

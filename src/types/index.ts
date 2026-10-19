@@ -18,6 +18,8 @@ export interface KV {
   auto?: boolean;
   /** Variable rows only: masks the value in the UI and keeps it out of what's sent to the AI. */
   secret?: boolean;
+  /** Persisted form only: the value lives in the encrypted secrets file (see lib/secretVault.ts), not here. */
+  secretInVault?: boolean;
 }
 
 export type AuthType =
