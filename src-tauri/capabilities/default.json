@@ -62,6 +62,11 @@
     "allow-kapi-grpc-cancel",
     "allow-kapi-resolve-secret-ref",
     "allow-kapi-secret-ref-approvals",
-    "allow-kapi-secret-ref-revoke"
+    "allow-kapi-secret-ref-revoke",
+    "allow-kapi-mqtt-connect",
+    "allow-kapi-mqtt-subscribe",
+    "allow-kapi-mqtt-unsubscribe",
+    "allow-kapi-mqtt-publish",
+    "allow-kapi-mqtt-disconnect"
   ]
 }

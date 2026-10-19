@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { RequestDef, RequestTabKey, ResponseView, Tab, WebSocketRequestDef, GrpcRequestDef } from '@/types';
+import type { RequestDef, RequestTabKey, ResponseView, Tab, WebSocketRequestDef, GrpcRequestDef, MqttRequestDef } from '@/types';
 import { newTab } from '@/lib/factory';
 import { withUrlParams } from '@/lib/send';
 import { vaultedStorage } from '@/lib/vaultedStorage';
@@ -27,6 +27,7 @@ interface SessionState {
   openRequestNode: (args: { nodeId: string; collectionId: string; name: string; request: RequestDef }) => string;
   openWebSocketNode: (args: { nodeId: string; collectionId: string; name: string; request: WebSocketRequestDef }) => string;
   openGrpcNode: (args: { nodeId: string; collectionId: string; name: string; request: GrpcRequestDef }) => string;
+  openMqttNode: (args: { nodeId: string; collectionId: string; name: string; request: MqttRequestDef }) => string;
   openCollectionTab: (collectionId: string, name: string) => string;
   openFolderTab: (collectionId: string, nodeId: string, name: string) => string;
   closeTab: (id: string) => void;
@@ -94,6 +95,17 @@ export const useSession = create<SessionState>()(
           return existing.id;
         }
         const tab = newTab({ nodeId, collectionId, name, kind: 'grpc', grpc: structuredClone(request) });
+        setState((state) => ({ tabs: [...state.tabs, tab], activeTabId: tab.id }));
+        return tab.id;
+      },
+
+      openMqttNode: ({ nodeId, collectionId, name, request }) => {
+        const existing = get().tabs.find((t) => t.nodeId === nodeId);
+        if (existing) {
+          setState({ activeTabId: existing.id });
+          return existing.id;
+        }
+        const tab = newTab({ nodeId, collectionId, name, kind: 'mqtt', mqtt: structuredClone(request) });
         setState((state) => ({ tabs: [...state.tabs, tab], activeTabId: tab.id }));
         return tab.id;
       },

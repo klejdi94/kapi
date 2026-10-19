@@ -122,7 +122,7 @@ function mergeCollectionWithSpec(existing: Collection, fresh: Collection): Colle
   function updateMatched(items: TreeNode[]): TreeNode[] {
     return items.map((node) => {
       if (node.type === 'folder') return { ...node, items: updateMatched(node.items) };
-      if (node.type === 'websocket' || node.type === 'grpc') return node;
+      if (node.type === 'websocket' || node.type === 'grpc' || node.type === 'mqtt') return node;
       const key = keyOf(node.request.method, node.request.url);
       const match = freshMap.get(key);
       if (!match) return node;

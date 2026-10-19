@@ -22,7 +22,8 @@ import { FolderDetailPage } from '@/components/collection/FolderDetailPage';
 import { WorkspaceOverview } from '@/components/workspace/WorkspaceOverview';
 import { TokenInspectorModal } from '@/components/modals/TokenInspectorModal';
 import { useTokenInspector } from '@/store/tokenInspector';
-import { writeTabGrpc, writeTabRequest, writeTabWs } from '@/lib/tabWrite';
+import { writeTabGrpc, writeTabMqtt, writeTabRequest, writeTabWs } from '@/lib/tabWrite';
+import { MqttPanel } from '@/components/mqtt/MqttPanel';
 import { GrpcPanel } from '@/components/grpc/GrpcPanel';
 import { upsertWorkspaceVariable } from '@/lib/varWrite';
 import { RunnerPanel } from '@/components/runner/RunnerPanel';
@@ -48,7 +49,7 @@ import { buildScope } from '@/lib/variables';
 import { resolveInheritedForNode } from '@/lib/inherit';
 import { locate } from '@/lib/tree';
 import { sendWithCookies } from '@/lib/sendWithCookies';
-import { uid, newGrpcRequest, newWebSocketRequest } from '@/lib/factory';
+import { uid, newGrpcRequest, newMqttRequest, newWebSocketRequest } from '@/lib/factory';
 import { toast } from '@/lib/toast';
 import { responseToExample, exampleToResponse } from '@/lib/examples';
 import { applyScriptRequest, chainScripts, responseToScriptInput, scriptRequestOf, type ScriptVars, type ChainOutcome, type TestResult } from '@/lib/scripting';
@@ -57,7 +58,7 @@ import { contractTestsLazy } from '@/lib/contractLazy';
 import { startMonitorScheduler } from '@/lib/monitorScheduler';
 import { useTestResults } from '@/store/testResults';
 import { withTrailingBlank } from '@/lib/factory';
-import type { GrpcRequestDef, KapiResponse, RequestDef, SavedExample, SentRequest, WebSocketRequestDef } from '@/types';
+import type { GrpcRequestDef, KapiResponse, RequestDef, SavedExample, SentRequest, WebSocketRequestDef, MqttRequestDef } from '@/types';
 import { FileDown, X } from 'lucide-react';
 
 const EMPTY_TESTS: TestResult[] = [];
@@ -345,6 +346,11 @@ export default function App() {
     writeTabGrpc(activeTab.id, grpc);
   };
 
+  const onChangeMqtt = (mqtt: MqttRequestDef) => {
+    if (!activeTab) return;
+    writeTabMqtt(activeTab.id, mqtt);
+  };
+
   const onSave = () => {
     if (!activeTab) return;
     if (activeTab.nodeId && activeTab.collectionId) {
@@ -352,6 +358,8 @@ export default function App() {
         writeTabWs(activeTab.id, activeTab.ws);
       } else if (activeTab.kind === 'grpc' && activeTab.grpc) {
         writeTabGrpc(activeTab.id, activeTab.grpc);
+      } else if (activeTab.kind === 'mqtt' && activeTab.mqtt) {
+        writeTabMqtt(activeTab.id, activeTab.mqtt);
       } else {
         writeTabRequest(activeTab.id, activeTab.request);
       }
@@ -426,6 +434,9 @@ export default function App() {
         break;
       case 'new-grpc-tab':
         openTab({ kind: 'grpc', name: 'New gRPC request', grpc: newGrpcRequest() });
+        break;
+      case 'new-mqtt-tab':
+        openTab({ kind: 'mqtt', name: 'New MQTT connection', mqtt: newMqttRequest() });
         break;
       case 'close-tab':
         if (activeTabId) closeTab(activeTabId);
@@ -592,6 +603,7 @@ export default function App() {
     { id: 'export-workspace', label: 'Export workspace…', icon: <FileDown size={13} />, run: () => setExportCollectionId('workspace') },
     { id: 'new-ws-tab', label: 'New WebSocket tab', icon: <FileDown size={13} />, run: () => openTab({ kind: 'ws', name: 'New WebSocket', ws: newWebSocketRequest() }) },
     { id: 'new-grpc-tab', label: 'New gRPC tab', icon: <FileDown size={13} />, run: () => runAction('new-grpc-tab') },
+    { id: 'new-mqtt-tab', label: 'New MQTT tab', icon: <FileDown size={13} />, run: () => runAction('new-mqtt-tab') },
     { id: 'close-tab', label: 'Close tab', icon: <X size={13} />, run: () => runAction('close-tab') },
     { id: 'close-other-tabs', label: 'Close other tabs', icon: <X size={13} />, run: () => runAction('close-other-tabs') },
     { id: 'close-all-tabs', label: 'Close all tabs', icon: <X size={13} />, run: () => runAction('close-all-tabs') },
@@ -645,6 +657,9 @@ export default function App() {
           )}
           {activeTab && activeTab.kind === 'grpc' && activeTab.grpc && (
             <GrpcPanel tabId={activeTab.id} request={activeTab.grpc} onChange={onChangeGrpc} collection={collection} />
+          )}
+          {activeTab && activeTab.kind === 'mqtt' && activeTab.mqtt && (
+            <MqttPanel tabId={activeTab.id} request={activeTab.mqtt} onChange={onChangeMqtt} collection={collection} />
           )}
           {activeTab && activeTab.kind === 'collection' && collection && (
             <CollectionDetailPage collection={collection} onExport={() => setExportCollectionId(collection.id)} />

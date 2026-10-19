@@ -60,8 +60,8 @@ export function TabBar() {
           const icon =
             tab.kind === 'ws' ? (
               <Plug size={11} className="shrink-0 text-info" />
-            ) : tab.kind === 'grpc' ? (
-              <span className="shrink-0 text-[9.5px] font-bold text-accent">gRPC</span>
+            ) : tab.kind === 'grpc' || tab.kind === 'mqtt' ? (
+              <span className="shrink-0 text-[9.5px] font-bold text-accent">{tab.kind === 'grpc' ? 'gRPC' : 'MQTT'}</span>
             ) : tab.kind === 'collection' ? (
               <FolderTree size={11} className="shrink-0 text-faint" />
             ) : tab.kind === 'folder' ? (

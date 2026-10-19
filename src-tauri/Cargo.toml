@@ -53,8 +53,15 @@ protox = "0.10"
 prost-types = "0.14"
 http = "1"
 tokio-stream = "0.1"
-tokio = { version = "1", default-features = false, features = ["rt"] }
+tokio = { version = "1", default-features = false, features = ["rt", "rt-multi-thread", "time", "sync", "macros"] }
 base64 = "0.22"
+# MQTT (3.1.1) over TCP, TLS and WebSockets. TLS uses rustls with the ring
+# provider, like tonic above — rumqttc's default pulls in aws-lc, which needs
+# cmake/nasm to build on Windows.
+rumqttc = { version = "0.25", default-features = false, features = ["use-rustls-no-provider", "websocket"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+rustls-native-certs = "0.8"
+rustls-pki-types = "1"
 tauri-plugin-notification = "2.7"
 
 [dev-dependencies]

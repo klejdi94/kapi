@@ -57,18 +57,33 @@ export function resolveWs(request: WebSocketRequestDef, scope: VarScope): { url:
   return { url, headers };
 }
 
+export interface ConnectOptions {
+  /** Rewrites the resolved URL (Socket.IO builds its own transport URL). */
+  url?: (resolved: string) => string;
+  /** Sec-WebSocket-Protocol values to offer; defaults to the request's own. */
+  protocols?: string[];
+}
+
 export async function connect(
   request: WebSocketRequestDef,
   scope: VarScope,
   handlers: WsHandlers,
+  options: ConnectOptions = {},
 ): Promise<WsConnection> {
   if (!wsAvailable()) {
     throw new Error('WebSocket connections need the desktop app — a plain browser tab has no way to set custom handshake headers.');
   }
-  const { url, headers } = resolveWs(request, scope);
-  if (!url.trim()) throw new Error('Enter a URL before connecting.');
+  const resolved = resolveWs(request, scope);
+  if (!resolved.url.trim()) throw new Error('Enter a URL before connecting.');
+  const url = options.url ? options.url(resolved.url) : resolved.url;
+  const headers = resolved.headers;
 
-  const headerRecord = Object.fromEntries(headers);
+  const headerRecord: Record<string, string> = Object.fromEntries(headers);
+  // The saved `protocols` used to be ignored; they're offered at the handshake now.
+  const protocols = (options.protocols ?? request.protocols ?? []).map((p) => resolve(p, scope).trim()).filter(Boolean);
+  if (protocols.length && !Object.keys(headerRecord).some((k) => k.toLowerCase() === 'sec-websocket-protocol')) {
+    headerRecord['Sec-WebSocket-Protocol'] = protocols.join(', ');
+  }
   const socket = await TauriWebSocket.connect(url, {
     headers: Object.keys(headerRecord).length ? headerRecord : undefined,
   });

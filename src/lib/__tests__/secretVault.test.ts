@@ -151,3 +151,21 @@ describe('vault encryption', () => {
     expect(sameSecrets({ a: '1' }, { a: '1', b: '2' })).toBe(false);
   });
 });
+
+describe('MQTT passwords', () => {
+  it('are vaulted, restored, and kept out of git snapshots', async () => {
+    const { newMqttNode } = await import('../factory');
+    const c = sampleCollection();
+    const node = newMqttNode('broker', { password: 'mqtt-pass', username: 'dev' });
+    node.id = 'm';
+    c.items.push(node);
+    const { text, secrets } = extractSecrets(envelope([], [c]), {}, WS);
+    expect(secrets[`${WS}/mqtt/m/password`]).toBe('mqtt-pass');
+    expect(text).not.toContain('mqtt-pass');
+    expect(parse(injectSecrets(text, secrets, WS).text).collections[0].items[1].request.password).toBe('mqtt-pass');
+
+    const redacted = redactCollections([c]);
+    expect(JSON.stringify(redacted)).not.toContain('mqtt-pass');
+    expect(keepLocalSecrets(redacted, [c])[0].items[1]).toMatchObject({ request: { password: 'mqtt-pass' } });
+  });
+});

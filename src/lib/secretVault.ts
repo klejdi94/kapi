@@ -1,5 +1,5 @@
-import type { AuthConfig, Collection, KV } from '@/types';
-import { AUTH_SECRET_FIELDS, collectionAuths, getAuthField, isLiteralSecret, setAuthField } from './secretFields';
+import type { AuthConfig, Collection, KV, MqttRequestDef } from '@/types';
+import { AUTH_SECRET_FIELDS, collectionAuths, collectionMqtt, getAuthField, isLiteralSecret, setAuthField } from './secretFields';
 
 /**
  * Secrets, encrypted at rest: secret-flagged variables and the credential
@@ -61,6 +61,25 @@ function variableSlots(ns: string, rows: KV[] | undefined): Slot[] {
     }));
 }
 
+function mqttSlot(ns: string, ownerId: string, request: MqttRequestDef | null | undefined): Slot[] {
+  if (!request || typeof request !== 'object') return [];
+  return [
+    {
+      key: `${ns}/mqtt/${ownerId}/password`,
+      get: () => request.password ?? '',
+      set: (value) => {
+        request.password = value;
+      },
+      shouldVault: isLiteralSecret,
+      marked: () => !!request.passwordInVault,
+      mark: (on) => {
+        if (on) request.passwordInVault = true;
+        else delete request.passwordInVault;
+      },
+    },
+  ];
+}
+
 function authSlots(ns: string, ownerId: string, auth: AuthConfig | undefined): Slot[] {
   if (!auth || typeof auth !== 'object') return [];
   return AUTH_SECRET_FIELDS.map((field) => ({
@@ -90,11 +109,15 @@ function slotsFor(ns: string, state: unknown): Slot[] {
       for (const collection of ws.collections ?? []) {
         slots.push(...variableSlots(ns, collection.variables));
         for (const { ownerId, auth } of collectionAuths(collection)) slots.push(...authSlots(ns, ownerId, auth));
+        for (const { ownerId, request } of collectionMqtt(collection)) slots.push(...mqttSlot(ns, ownerId, request));
       }
     }
   }
   if (ns === 'kapi.session' && Array.isArray(s.tabs)) {
-    for (const tab of s.tabs as { id: string; request?: { auth?: AuthConfig } }[]) slots.push(...authSlots(ns, tab.id, tab.request?.auth));
+    for (const tab of s.tabs as { id: string; request?: { auth?: AuthConfig }; mqtt?: MqttRequestDef | null }[]) {
+      slots.push(...authSlots(ns, tab.id, tab.request?.auth));
+      slots.push(...mqttSlot(ns, tab.id, tab.mqtt));
+    }
   }
   if (ns === 'kapi.history' && Array.isArray(s.entries)) {
     for (const entry of s.entries as { id: string; request?: { auth?: AuthConfig } }[]) slots.push(...authSlots(ns, entry.id, entry.request?.auth));
@@ -107,7 +130,7 @@ export const VAULTED_STORES = ['kapi.workspaces', 'kapi.session', 'kapi.history'
 
 /** True when a persisted store text references the vault (cheap pre-check before parsing). */
 export function referencesVault(text: string): boolean {
-  return text.includes('"secretInVault"') || text.includes('"vaulted"');
+  return text.includes('"secretInVault"') || text.includes('"vaulted"') || text.includes('"passwordInVault"');
 }
 
 /**

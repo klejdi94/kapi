@@ -48,3 +48,48 @@ server.addService(pkg.demo.v1.Greeter.service, {
 });
 new ReflectionService(def).addToServer(server);
 server.bindAsync('127.0.0.1:50077', grpc.ServerCredentials.createInsecure(), () => console.log('servers ready'));
+
+// --- MQTT: an aedes broker on TCP :18883 and WebSocket :18884 (path /mqtt).
+(async () => {
+  const net = require('node:net');
+  const { WebSocketServer, createWebSocketStream } = require('ws');
+  const aedesModule = await import('aedes');
+  const Aedes = aedesModule.Aedes ?? aedesModule.default;
+  const broker = typeof Aedes.createBroker === 'function' ? await Aedes.createBroker() : new Aedes();
+  net.createServer(broker.handle).listen(18883, '127.0.0.1');
+  const wsHttp = http.createServer();
+  new WebSocketServer({ server: wsHttp, path: '/mqtt' }).on('connection', (socket) => broker.handle(createWebSocketStream(socket)));
+  wsHttp.listen(18884, '127.0.0.1');
+})();
+
+// --- GraphQL subscriptions (graphql-transport-ws) on :18085/graphql.
+(async () => {
+  const { WebSocketServer } = require('ws');
+  const { buildSchema } = require('graphql');
+  const { useServer } = await import('graphql-ws/use/ws');
+  const schema = buildSchema('type Query { hello: String } type Subscription { countdown(from: Int!): Int }');
+  const roots = {
+    hello: () => 'world',
+    countdown: async function* ({ from }) {
+      for (let i = from; i >= 0; i--) {
+        yield { countdown: i };
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    },
+  };
+  const gqlHttp = http.createServer();
+  useServer({ schema, roots: { query: roots, subscription: roots } }, new WebSocketServer({ server: gqlHttp, path: '/graphql' }));
+  gqlHttp.listen(18085, '127.0.0.1');
+})();
+
+// --- Socket.IO on :18086.
+(() => {
+  const { Server } = require('socket.io');
+  const ioHttp = http.createServer();
+  const io = new Server(ioHttp);
+  io.on('connection', (socket) => {
+    socket.emit('welcome', { id: socket.id });
+    socket.on('add', (a, b, ack) => typeof ack === 'function' && ack(a + b));
+  });
+  ioHttp.listen(18086, '127.0.0.1');
+})();

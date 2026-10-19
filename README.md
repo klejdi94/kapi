@@ -181,10 +181,13 @@ frame, mock hit and script log, with full headers and bodies.
 </td></tr>
 <tr><td width="50%" valign="top">
 
-**gRPC, without generated code**
+**gRPC, GraphQL subscriptions, Socket.IO and MQTT**
 Point kapi at a server with reflection, or at your `.proto` files, pick a method, and send JSON.
 Unary, server-streaming, client-streaming and bidirectional calls, metadata, deadlines, TLS and mTLS —
 streamed responses appear message by message.
+
+Also realtime: a WebSocket tab speaks GraphQL subscriptions or Socket.IO (events, acks, namespaces),
+and MQTT connects to any broker over TCP, TLS or WebSockets to subscribe and publish.
 
 </td><td width="50%" valign="top">
 

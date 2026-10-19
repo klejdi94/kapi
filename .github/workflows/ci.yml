@@ -102,11 +102,12 @@ jobs:
       - name: Desktop end-to-end
         run: .github/scripts/run-annotated.sh "desktop e2e" xvfb-run -a -s "-screen 0 1440x900x24" dbus-run-session -- e2e/desktop/run.sh
 
-      - name: gRPC against a live server
+      - name: gRPC and MQTT against live servers
         run: |
           node e2e/desktop/servers.js &
-          sleep 2
-          cd src-tauri && KAPI_GRPC_TEST_ADDR=127.0.0.1:50077 cargo test live_tests
+          sleep 3
+          cd src-tauri
+          KAPI_GRPC_TEST_ADDR=127.0.0.1:50077 KAPI_MQTT_TEST_ADDR=127.0.0.1:18883 KAPI_MQTT_TEST_WS=ws://127.0.0.1:18884/mqtt cargo test live_tests
 
       - uses: actions/upload-artifact@v4
         if: failure()

@@ -1,6 +1,6 @@
 import { useSession } from '@/store/session';
 import { useWorkspaces } from '@/store/workspaces';
-import type { GrpcRequestDef, RequestDef, WebSocketRequestDef } from '@/types';
+import type { GrpcRequestDef, RequestDef, WebSocketRequestDef, MqttRequestDef } from '@/types';
 
 /**
  * Writes a tab's request draft and, when the tab is backed by a saved node,
@@ -35,6 +35,16 @@ export function writeTabGrpc(tabId: string, grpc: GrpcRequestDef) {
   session.patchTab(tabId, { grpc, dirty: tab?.nodeId ? true : tab?.dirty ?? false });
   if (tab?.nodeId && tab.collectionId) {
     useWorkspaces.getState().updateGrpcRequest(tab.collectionId, tab.nodeId, grpc);
+    session.patchTab(tabId, { dirty: false });
+  }
+}
+
+export function writeTabMqtt(tabId: string, mqtt: MqttRequestDef) {
+  const session = useSession.getState();
+  const tab = session.tabs.find((t) => t.id === tabId);
+  session.patchTab(tabId, { mqtt, dirty: tab?.nodeId ? true : tab?.dirty ?? false });
+  if (tab?.nodeId && tab.collectionId) {
+    useWorkspaces.getState().updateMqttRequest(tab.collectionId, tab.nodeId, mqtt);
     session.patchTab(tabId, { dirty: false });
   }
 }

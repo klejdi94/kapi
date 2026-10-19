@@ -38,6 +38,11 @@ function renderNode(node: TreeNode, depth: number, lines: string[]) {
     lines.push(`${heading} ${node.name} (WebSocket)`, '', `\`${node.request.url}\``, '');
     return;
   }
+  if (node.type === 'mqtt') {
+    const topics = node.request.subscriptions.map((s) => `\`${s.topic}\``).join(', ');
+    lines.push(`${heading} ${node.name} (MQTT)`, '', `\`${node.request.url}\`${topics ? ` · subscribes to ${topics}` : ''}`, '');
+    return;
+  }
   if (node.type === 'grpc') {
     const target = node.request.service && node.request.method ? `${node.request.service}/${node.request.method}` : 'no method chosen';
     lines.push(`${heading} ${node.name} (gRPC)`, '', `\`${node.request.url}\` · \`${target}\``, '');

@@ -32,9 +32,12 @@ npx tauri build --debug --no-bundle
 xvfb-run -a dbus-run-session -- e2e/desktop/run.sh
 ```
 
-`e2e/desktop/servers.js` also gives you a local HTTP echo server (`:18090`) and a gRPC server with
-reflection (`:50077`) to try things against while developing; with it running,
-`KAPI_GRPC_TEST_ADDR=127.0.0.1:50077 cargo test live_tests` exercises every gRPC call kind.
+`e2e/desktop/servers.js` also gives you local servers to try things against while developing: an
+HTTP echo server (`:18090`), gRPC with reflection (`:50077`), GraphQL subscriptions
+(`ws://127.0.0.1:18085/graphql`), Socket.IO (`http://127.0.0.1:18086`) and an MQTT broker
+(`mqtt://127.0.0.1:18883`, `ws://127.0.0.1:18884/mqtt`). With it running,
+`KAPI_GRPC_TEST_ADDR=127.0.0.1:50077 KAPI_MQTT_TEST_ADDR=127.0.0.1:18883 KAPI_MQTT_TEST_WS=ws://127.0.0.1:18884/mqtt cargo test live_tests`
+exercises gRPC and MQTT against them.
 
 ## Where things live
 

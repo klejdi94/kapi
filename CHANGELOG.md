@@ -17,6 +17,11 @@ All notable changes to kapi. Versions follow [semver](https://semver.org).
   pulling keeps your local values.
 
 ### Added
+- **GraphQL subscriptions, Socket.IO and MQTT.** A WebSocket tab can speak GraphQL subscriptions
+  (`graphql-transport-ws` and the legacy `subscriptions-transport-ws`, with connection params and
+  variables) or Socket.IO v4 (namespaces, handshake auth, emitting events with acks). A new MQTT
+  request type connects over TCP, TLS, WebSocket or secure WebSocket, subscribes with `+`/`#`
+  filters and QoS 0–2, publishes (with retain) and shows messages live with a topic filter.
 - **Performance regressions between runs**: the Runner and load tests compare each request's p50/p95
   and error rate with the previous run and show what got slower or better. Monitors compare their
   last 3 runs with the 10 before and notify once when a request slows down. `kapi run`/`load` take
@@ -59,6 +64,9 @@ All notable changes to kapi. Versions follow [semver](https://semver.org).
 - Optional macOS Developer ID / notarization and Windows Authenticode signing in the release workflow.
 
 ### Fixed
+- A WebSocket request's saved subprotocols were never offered at the handshake.
+- The desktop build failed because Tauri's npm packages and Rust crates had drifted apart; CI now
+  checks they match.
 - Requests to a non-default port (e.g. `localhost:3000`) were refused by the desktop app's HTTP scope.
 - Saves are atomic, keep a `.bak` of the previous version, and recover from a damaged file.
 - Closing the window or quitting right after an edit no longer risks losing it.

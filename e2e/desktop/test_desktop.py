@@ -173,6 +173,72 @@ try:
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(., '4 messages')]")))
     check('server streaming delivers every message', len(d.find_elements(By.XPATH, "//pre[contains(., '\"n\"')]")) == 4)
     d.save_screenshot(f'{SHOTS}/grpc-stream.png')
+    # --- realtime protocols
+    def palette(command):
+        d.find_element(By.TAG_NAME, 'body').send_keys(Keys.CONTROL, 'k')
+        time.sleep(0.4)
+        d.switch_to.active_element.send_keys(command)
+        time.sleep(0.3)
+        d.switch_to.active_element.send_keys(Keys.ENTER)
+        time.sleep(0.5)
+
+    def choose(select_label, value):
+        select = wait.until(EC.presence_of_element_located((By.XPATH, f"//select[@aria-label='{select_label}']")))
+        for option in select.find_elements(By.TAG_NAME, 'option'):
+            if option.get_attribute('value') == value:
+                option.click()
+
+    def set_input(xpath, text):
+        field = wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
+        field.send_keys(Keys.CONTROL, 'a')
+        field.send_keys(text)
+
+    def log_text():
+        return d.find_element(By.TAG_NAME, 'body').text
+
+    def wait_for_text(fragment, timeout=15):
+        WebDriverWait(d, timeout).until(lambda _: fragment in log_text())
+
+    # GraphQL subscription
+    palette('New WebSocket tab')
+    choose('Protocol', 'graphql')
+    set_input("//input[starts-with(@placeholder, 'wss://api.example.com/graphql')]", 'ws://127.0.0.1:18085/graphql')
+    tab('Subscription').click()
+    replace_editor(0, 'subscription { countdown(from: 3) }')
+    button('Subscribe').click()
+    tab('Messages').click()
+    wait_for_text('Subscription #1 completed')
+    results = d.find_elements(By.XPATH, "//pre[contains(., '\"countdown\"')]")
+    check('GraphQL subscription streams every result', len(results) == 4, [r.text for r in results])
+    d.save_screenshot(f'{SHOTS}/graphql-subscription.png')
+
+    # Socket.IO
+    palette('New WebSocket tab')
+    choose('Protocol', 'socketio')
+    set_input("//input[@placeholder='http://localhost:3000']", 'http://127.0.0.1:18086')
+    button('Connect').click()
+    wait_for_text('Connected to /')
+    set_input("//input[@aria-label='Event']", 'add')
+    set_input("//input[@aria-label='Arguments']", '[20, 22]')
+    clickable("//label[.//span[normalize-space(.)='Ack']]").click()
+    button('Emit').click()
+    wait_for_text('ack for add 42')
+    check('Socket.IO connects, receives events and matches acks', 'welcome' in log_text())
+    d.save_screenshot(f'{SHOTS}/socketio.png')
+
+    # MQTT over TCP, then over WebSocket
+    for broker in ['mqtt://127.0.0.1:18883', 'ws://127.0.0.1:18884/mqtt']:
+        palette('New MQTT tab')
+        set_input("//input[starts-with(@placeholder, 'mqtt://localhost:1883')]", broker)
+        button('Connect').click()
+        wait_for_text('Subscribed to #')
+        set_input("//input[@aria-label='Publish topic']", 'kapi/e2e')
+        set_input("//input[@aria-label='Payload']", '{"on": true}')
+        button('Publish').click()
+        WebDriverWait(d, 15).until(lambda _: len(d.find_elements(By.XPATH, "//span[normalize-space(.)='kapi/e2e']")) >= 2)
+        check(f'MQTT publishes and receives over {broker.split(":")[0]}', True)
+        d.save_screenshot(f'{SHOTS}/mqtt-{broker.split(":")[0]}.png')
+        button('Disconnect').click()
 except Exception as exc:  # noqa: BLE001 — report and screenshot whatever broke
     failures.append(f'exception: {exc!r}'[:300])
     print(failures[-1])

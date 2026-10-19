@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import {
-  ChevronRight, Copy, Download, FilePlus, FileText, Folder, FolderInput, FolderPlus, ListChecks, MoreHorizontal, Network, Pencil, Pin, Play, Plug, Trash2, X,
+  ChevronRight, Copy, Download, FilePlus, FileText, Folder, FolderInput, FolderPlus, ListChecks, MoreHorizontal, Network, Pencil, RadioTower, Pin, Play, Plug, Trash2, X,
 } from 'lucide-react';
 import clsx from 'clsx';
-import type { Collection, FolderNode, RequestNode, TreeNode, WebSocketNode, GrpcNode } from '@/types';
+import type { Collection, FolderNode, RequestNode, TreeNode, WebSocketNode, GrpcNode, MqttNode } from '@/types';
 import { methodVar } from '@/lib/methodColor';
-import { newFolder, newGrpcNode, newRequestNode, newWebSocketNode } from '@/lib/factory';
+import { newFolder, newGrpcNode, newMqttNode, newRequestNode, newWebSocketNode } from '@/lib/factory';
 import { useWorkspaces } from '@/store/workspaces';
 import { useRunner } from '@/store/runner';
 import { useSession } from '@/store/session';
@@ -32,6 +32,7 @@ export function CollectionTree({ collection }: { collection: Collection }) {
   const openRequestNode = useSession((s) => s.openRequestNode);
   const openWebSocketNode = useSession((s) => s.openWebSocketNode);
   const openGrpcNode = useSession((s) => s.openGrpcNode);
+  const openMqttNode = useSession((s) => s.openMqttNode);
 
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -88,8 +89,10 @@ export function CollectionTree({ collection }: { collection: Collection }) {
     openRequestNode({ nodeId: node.id, collectionId: collection.id, name: node.name, request: node.request });
   const openWebSocket = (node: WebSocketNode) =>
     openWebSocketNode({ nodeId: node.id, collectionId: collection.id, name: node.name, request: node.request });
-  const openGrpc = (node: GrpcNode) =>
-    openGrpcNode({ nodeId: node.id, collectionId: collection.id, name: node.name, request: node.request });
+  const openGrpc = (node: GrpcNode | MqttNode) =>
+    node.type === 'grpc'
+      ? openGrpcNode({ nodeId: node.id, collectionId: collection.id, name: node.name, request: node.request })
+      : openMqttNode({ nodeId: node.id, collectionId: collection.id, name: node.name, request: node.request });
 
   const handleDrop = (targetId: string | null, where: 'before' | 'after' | 'inside') => {
     if (!drag) return;
@@ -137,6 +140,7 @@ export function CollectionTree({ collection }: { collection: Collection }) {
             { label: 'New request', icon: <FilePlus size={12} />, onSelect: () => addNode(collection.id, null, newRequestNode()), separatorAbove: true },
             { label: 'New WebSocket', icon: <Plug size={12} />, onSelect: () => addNode(collection.id, null, newWebSocketNode()) },
             { label: 'New gRPC request', icon: <Network size={12} />, onSelect: () => addNode(collection.id, null, newGrpcNode()) },
+            { label: 'New MQTT connection', icon: <RadioTower size={12} />, onSelect: () => addNode(collection.id, null, newMqttNode()) },
             { label: 'New folder', icon: <FolderPlus size={12} />, onSelect: () => addNode(collection.id, null, newFolder()) },
             { label: 'Rename', icon: <Pencil size={12} />, onSelect: () => setRenaming(collection.id), separatorAbove: true },
             { label: 'Duplicate', icon: <Copy size={12} />, onSelect: () => duplicateCollection(collection.id) },
@@ -180,7 +184,9 @@ export function CollectionTree({ collection }: { collection: Collection }) {
               { label: 'New request', icon: <FilePlus size={12} />, onSelect: () => addNode(collection.id, null, newRequestNode()) },
               { label: 'New WebSocket', icon: <Plug size={12} />, onSelect: () => addNode(collection.id, null, newWebSocketNode()) },
               { label: 'New gRPC request', icon: <Network size={12} />, onSelect: () => addNode(collection.id, null, newGrpcNode()) },
+            { label: 'New MQTT connection', icon: <RadioTower size={12} />, onSelect: () => addNode(collection.id, null, newMqttNode()) },
             { label: 'New gRPC request', icon: <Network size={12} />, onSelect: () => addNode(collection.id, null, newGrpcNode()) },
+            { label: 'New MQTT connection', icon: <RadioTower size={12} />, onSelect: () => addNode(collection.id, null, newMqttNode()) },
               { label: 'New folder', icon: <FolderPlus size={12} />, onSelect: () => addNode(collection.id, null, newFolder()) },
               { label: 'Run collection', icon: <ListChecks size={12} />, onSelect: () => useRunner.getState().openFor(collection.id, null), separatorAbove: true },
             ])
@@ -301,7 +307,7 @@ function NodeRow({
   openMenu: (e: React.MouseEvent, items: MenuItem[]) => void;
   openRequest: (node: RequestNode) => void;
   openWebSocket: (node: WebSocketNode) => void;
-  openGrpc: (node: GrpcNode) => void;
+  openGrpc: (node: GrpcNode | MqttNode) => void;
   addNode: ReturnType<typeof useWorkspaces.getState>['addNode'];
   deleteNode: ReturnType<typeof useWorkspaces.getState>['deleteNode'];
   duplicateNode: ReturnType<typeof useWorkspaces.getState>['duplicateNode'];
@@ -400,6 +406,7 @@ function NodeRow({
                 { label: 'New request', icon: <FilePlus size={12} />, onSelect: () => addNode(collection.id, node.id, newRequestNode()), separatorAbove: true },
                 { label: 'New WebSocket', icon: <Plug size={12} />, onSelect: () => addNode(collection.id, node.id, newWebSocketNode()) },
                 { label: 'New gRPC request', icon: <Network size={12} />, onSelect: () => addNode(collection.id, node.id, newGrpcNode()) },
+                { label: 'New MQTT connection', icon: <RadioTower size={12} />, onSelect: () => addNode(collection.id, node.id, newMqttNode()) },
                 { label: 'New folder', icon: <FolderPlus size={12} />, onSelect: () => addNode(collection.id, node.id, newFolder()) },
                 { label: 'Run folder', icon: <ListChecks size={12} />, onSelect: () => useRunner.getState().openFor(collection.id, node.id), separatorAbove: true },
                 ...commonMenuItems(),
@@ -463,7 +470,7 @@ function NodeRow({
     );
   }
 
-  if (node.type === 'grpc') {
+  if (node.type === 'grpc' || node.type === 'mqtt') {
     const grpc = node;
     return (
       <div className="relative">
@@ -483,7 +490,7 @@ function NodeRow({
           )}
           style={{ paddingLeft: 4 + (depth + 1) * 14 }}
         >
-          <span className="w-9 shrink-0 text-[10px] font-bold tracking-wide text-accent">gRPC</span>
+          <span className="w-9 shrink-0 text-[10px] font-bold tracking-wide text-accent">{grpc.type === 'grpc' ? 'gRPC' : 'MQTT'}</span>
           {renaming === node.id ? (
             <RenameInput value={node.name} onCommit={(name) => { updateNode(collection.id, node.id, { name }); setRenaming(null); }} onCancel={() => setRenaming(null)} />
           ) : (

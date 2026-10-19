@@ -69,7 +69,7 @@ export function countByType(items: TreeNode[]): { requests: number; folders: num
     if (node.type === 'request') requests++;
     else if (node.type === 'folder') folders++;
     else if (node.type === 'websocket') websockets++;
-    else if (node.type === 'grpc') grpc++;
+    else if (node.type === 'grpc' || node.type === 'mqtt') grpc++;
   });
   return { requests, folders, websockets, grpc };
 }

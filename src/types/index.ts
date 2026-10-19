@@ -169,6 +169,55 @@ export interface WebSocketRequestDef {
   protocols: string[];
   /** Text sent by default when the "send" box is empty and the user just wants a quick ping. */
   defaultMessage: string;
+  /** What's spoken over the socket. Missing means `raw` (requests saved before this existed). */
+  protocol?: 'raw' | 'graphql' | 'socketio';
+  graphql?: {
+    query: string;
+    /** JSON. */
+    variables: string;
+    /** JSON sent as the connection_init payload (often `{ "authorization": "Bearer …" }`). */
+    connectionParams: string;
+    subprotocol: 'graphql-transport-ws' | 'graphql-ws';
+  };
+  socketio?: {
+    /** Server path, `/socket.io/` unless the server changed it. */
+    path: string;
+    namespace: string;
+    /** JSON sent as the handshake `auth`. */
+    auth: string;
+    event: string;
+    /** JSON: an array of arguments, or one value. */
+    args: string;
+    withAck: boolean;
+  };
+}
+
+export interface MqttRequestDef {
+  /** `mqtt://host:1883`, `mqtts://host:8883`, `ws://host:9001/mqtt`, `wss://…`. */
+  url: string;
+  clientId: string;
+  username: string;
+  password: string;
+  keepAliveSecs: number;
+  cleanSession: boolean;
+  subscriptions: { topic: string; qos: 0 | 1 | 2 }[];
+  publishTopic: string;
+  publishPayload: string;
+  publishQos: 0 | 1 | 2;
+  publishRetain: boolean;
+  caCertPem?: string;
+  clientCertPem?: string;
+  clientKeyPem?: string;
+  /** Persisted form only: the password lives in the encrypted secrets file. */
+  passwordInVault?: boolean;
+}
+
+export interface MqttNode {
+  id: string;
+  type: 'mqtt';
+  name: string;
+  request: MqttRequestDef;
+  pinned?: boolean;
 }
 
 export interface WebSocketNode {
@@ -233,7 +282,7 @@ export interface FolderNode {
   items: TreeNode[];
 }
 
-export type TreeNode = RequestNode | WebSocketNode | GrpcNode | FolderNode;
+export type TreeNode = RequestNode | WebSocketNode | GrpcNode | MqttNode | FolderNode;
 
 export interface Collection {
   id: string;
@@ -404,12 +453,14 @@ export interface Tab {
   nodeId: string | null;
   collectionId: string | null;
   name: string;
-  kind: 'http' | 'ws' | 'grpc' | 'collection' | 'folder';
+  kind: 'http' | 'ws' | 'grpc' | 'mqtt' | 'collection' | 'folder';
   request: RequestDef;
   /** Only set when `kind === 'ws'`. */
   ws: WebSocketRequestDef | null;
   /** Only set when `kind === 'grpc'`. */
   grpc?: GrpcRequestDef | null;
+  /** Only set when `kind === 'mqtt'`. */
+  mqtt?: MqttRequestDef | null;
   dirty: boolean;
   /** Pinned tabs sort first and survive "Close other tabs" / "Close all tabs". */
   pinned?: boolean;

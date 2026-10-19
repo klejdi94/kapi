@@ -89,7 +89,7 @@ function nodeToPostman(node: TreeNode): unknown {
       item: node.items.map(nodeToPostman).filter(Boolean),
     };
   }
-  if (node.type === 'websocket' || node.type === 'grpc') return null;
+  if (node.type === 'websocket' || node.type === 'grpc' || node.type === 'mqtt') return null;
   const req = node.request;
   return {
     name: node.name,

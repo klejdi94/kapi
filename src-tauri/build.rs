@@ -29,6 +29,11 @@ fn main() {
             "kapi_resolve_secret_ref",
             "kapi_secret_ref_approvals",
             "kapi_secret_ref_revoke",
+            "kapi_mqtt_connect",
+            "kapi_mqtt_subscribe",
+            "kapi_mqtt_unsubscribe",
+            "kapi_mqtt_publish",
+            "kapi_mqtt_disconnect",
         ])),
     )
     .expect("failed to run tauri-build");

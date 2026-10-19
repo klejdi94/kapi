@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid';
-import type { AuthConfig, BodyConfig, Collection, Environment, FolderNode, KV, MockRoute, RequestDef, RequestNode, RequestSettings, Tab, WebSocketNode, WebSocketRequestDef, Workspace, GrpcNode, GrpcRequestDef } from '@/types';
+import type { AuthConfig, BodyConfig, Collection, Environment, FolderNode, KV, MockRoute, RequestDef, RequestNode, RequestSettings, Tab, WebSocketNode, WebSocketRequestDef, Workspace, GrpcNode, GrpcRequestDef, MqttNode, MqttRequestDef } from '@/types';
 
 export const uid = (): string => nanoid(10);
 
@@ -183,6 +183,36 @@ export function newGrpcRequest(partial: Partial<GrpcRequestDef> = {}): GrpcReque
     timeoutMs: 30_000,
     ...partial,
   };
+}
+
+export function newMqttRequest(partial: Partial<MqttRequestDef> = {}): MqttRequestDef {
+  return {
+    url: 'mqtt://localhost:1883',
+    clientId: `kapi-${Math.random().toString(36).slice(2, 8)}`,
+    username: '',
+    password: '',
+    keepAliveSecs: 30,
+    cleanSession: true,
+    subscriptions: [{ topic: '#', qos: 0 }],
+    publishTopic: '',
+    publishPayload: '',
+    publishQos: 0,
+    publishRetain: false,
+    ...partial,
+  };
+}
+
+export function newMqttNode(name = 'New MQTT connection', request?: Partial<MqttRequestDef>): MqttNode {
+  return { id: uid(), type: 'mqtt', name, request: newMqttRequest(request) };
+}
+
+/** Defaults for the protocol-specific parts of a WebSocket request, for requests saved before they existed. */
+export function wsGraphqlDefaults(): NonNullable<WebSocketRequestDef['graphql']> {
+  return { query: 'subscription {\n  \n}', variables: '{}', connectionParams: '{}', subprotocol: 'graphql-transport-ws' };
+}
+
+export function wsSocketIoDefaults(): NonNullable<WebSocketRequestDef['socketio']> {
+  return { path: '/socket.io/', namespace: '/', auth: '', event: 'message', args: '["hello"]', withAck: false };
 }
 
 export function newGrpcNode(name = 'New gRPC request', request?: Partial<GrpcRequestDef>): GrpcNode {

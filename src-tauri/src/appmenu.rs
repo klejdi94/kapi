@@ -45,6 +45,7 @@ pub fn build<R: Runtime>(app: &App<R>) -> tauri::Result<Menu<R>> {
         )
         .item(&MenuItemBuilder::with_id("new-ws-tab", "New WebSocket Tab").build(app)?)
         .item(&MenuItemBuilder::with_id("new-grpc-tab", "New gRPC Tab").build(app)?)
+        .item(&MenuItemBuilder::with_id("new-mqtt-tab", "New MQTT Tab").build(app)?)
         .item(
             &MenuItemBuilder::with_id("close-tab", "Close Tab")
                 .accelerator("CmdOrCtrl+W")

@@ -1,4 +1,4 @@
-import type { AuthConfig, Collection, KV, TreeNode } from '@/types';
+import type { AuthConfig, Collection, KV, MqttRequestDef, TreeNode } from '@/types';
 
 /**
  * Where secrets live in kapi's data, in one place: secret-flagged variable
@@ -48,6 +48,19 @@ export function isLiteralSecret(value: string): boolean {
   return !!value && !isVariableReference(value);
 }
 
+/** Every MQTT connection in a collection (their passwords are secrets too). */
+export function collectionMqtt(collection: Collection): { ownerId: string; request: MqttRequestDef }[] {
+  const out: { ownerId: string; request: MqttRequestDef }[] = [];
+  const visit = (items: TreeNode[]) => {
+    for (const node of items ?? []) {
+      if (node.type === 'folder') visit(node.items);
+      else if (node.type === 'mqtt' && node.request) out.push({ ownerId: node.id, request: node.request });
+    }
+  };
+  visit(collection.items);
+  return out;
+}
+
 /** Every auth config in a collection, keyed by the id of whatever owns it. */
 export function collectionAuths(collection: Collection): { ownerId: string; auth: AuthConfig }[] {
   const out: { ownerId: string; auth: AuthConfig }[] = [];
@@ -81,6 +94,9 @@ export function redactCollections(collections: Collection[]): Collection[] {
         if (isLiteralSecret(getAuthField(auth, field))) setAuthField(auth, field, '');
       }
     }
+    for (const { request } of collectionMqtt(collection)) {
+      if (isLiteralSecret(request.password)) request.password = '';
+    }
   }
   return copy;
 }
@@ -94,9 +110,11 @@ export function redactCollections(collections: Collection[]): Collection[] {
 export function keepLocalSecrets(incoming: Collection[], local: Collection[]): Collection[] {
   const result = structuredClone(incoming) as Collection[];
   const localAuths = new Map<string, AuthConfig>();
+  const localMqtt = new Map<string, MqttRequestDef>();
   const localVars = new Map<string, KV>();
   for (const collection of local) {
     for (const { ownerId, auth } of collectionAuths(collection)) localAuths.set(ownerId, auth);
+    for (const { ownerId, request } of collectionMqtt(collection)) localMqtt.set(ownerId, request);
     for (const row of collection.variables ?? []) localVars.set(`${collection.id}\u0000${row.key}`, row);
   }
   for (const collection of result) {
@@ -110,6 +128,12 @@ export function keepLocalSecrets(incoming: Collection[], local: Collection[]): C
       for (const field of AUTH_SECRET_FIELDS) {
         if (!getAuthField(auth, field) && isLiteralSecret(getAuthField(mine, field))) setAuthField(auth, field, getAuthField(mine, field));
       }
+    }
+  }
+  for (const collection of result) {
+    for (const { ownerId, request } of collectionMqtt(collection)) {
+      const mine = localMqtt.get(ownerId);
+      if (!request.password && mine && isLiteralSecret(mine.password)) request.password = mine.password;
     }
   }
   return result;

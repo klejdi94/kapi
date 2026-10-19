@@ -6,6 +6,7 @@ mod appmenu;
 mod discovery;
 mod grpc;
 mod mock;
+mod mqtt;
 mod mtls;
 mod oauth;
 mod secret_refs;
@@ -14,6 +15,7 @@ use ai_cli::{kapi_ai_list_available, kapi_ai_prompt};
 use discovery::{kapi_discovery_report, kapi_open_discovery};
 use grpc::{kapi_grpc_call, kapi_grpc_cancel, kapi_grpc_load_protos, kapi_grpc_reflect, GrpcCalls};
 use mock::{kapi_mock_is_running, kapi_mock_start, kapi_mock_stop, MockState};
+use mqtt::{kapi_mqtt_connect, kapi_mqtt_disconnect, kapi_mqtt_publish, kapi_mqtt_subscribe, kapi_mqtt_unsubscribe, MqttSessions};
 use mtls::kapi_send_mtls;
 use oauth::{kapi_oauth_cancel, kapi_oauth_listen, OAuthListenState};
 use secret_refs::{kapi_resolve_secret_ref, kapi_secret_ref_approvals, kapi_secret_ref_revoke, SecretRefApprovals};
@@ -98,6 +100,7 @@ pub fn run() {
         .manage(OAuthListenState::default())
         .manage(GrpcCalls::default())
         .manage(SecretRefApprovals::default())
+        .manage(MqttSessions::default())
         .invoke_handler(tauri::generate_handler![
             kapi_write_text_file,
             kapi_write_binary_file,
@@ -120,7 +123,12 @@ pub fn run() {
             kapi_grpc_cancel,
             kapi_resolve_secret_ref,
             kapi_secret_ref_approvals,
-            kapi_secret_ref_revoke
+            kapi_secret_ref_revoke,
+            kapi_mqtt_connect,
+            kapi_mqtt_subscribe,
+            kapi_mqtt_unsubscribe,
+            kapi_mqtt_publish,
+            kapi_mqtt_disconnect
         ])
         .on_menu_event(|app, event| {
             appmenu::handle_event(app, event.id().as_ref());
