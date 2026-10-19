@@ -37,6 +37,8 @@
     "websocket:default",
     "updater:default",
     "process:allow-restart",
+    "process:allow-exit",
+    "core:window:allow-destroy",
     "allow-kapi-write-text-file",
     "allow-kapi-write-binary-file",
     "allow-kapi-read-text-file",

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { flushPendingWrites } from './lib/fileStorage';
+import { installExitFlush } from './lib/exitFlush';
 import { setScriptSandbox } from './lib/scripting';
 import { workerSandbox } from './lib/scripting/workerSandbox';
 import './styles/app.css';
@@ -12,8 +13,10 @@ import './styles/app.css';
 setScriptSandbox(workerSandbox);
 
 // Debounced disk writes (see fileStorage.ts) must not be lost when the
-// window closes before their timer fires.
-window.addEventListener('beforeunload', flushPendingWrites);
+// window closes or the app quits before their timer fires. `beforeunload`
+// stays as a best-effort fallback for exits that bypass both (e.g. a reload).
+void installExitFlush();
+window.addEventListener('beforeunload', () => void flushPendingWrites());
 
 /**
  * The webview's own context menu is a browser affordance ("Inspect Element",

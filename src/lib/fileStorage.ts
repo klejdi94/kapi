@@ -41,18 +41,29 @@ async function filePath(name: string): Promise<string> {
   return join(await dataDir(), `${name}.json`);
 }
 
-function flush(name: string, value: string) {
+function flush(name: string, value: string): Promise<void> {
   pending.delete(name);
-  if (lastWritten.get(name) === value) return;
-  filePath(name)
-    .then((path) => writeTextFile(path, value))
-    .then(() => lastWritten.set(name, value))
+  if (lastWritten.get(name) === value) return Promise.resolve();
+  return filePath(name)
+    .then((path) => writeTextFile(path, value, { backup: true }))
+    .then(() => {
+      lastWritten.set(name, value);
+    })
     .catch((err) => {
       if (!warnedUnavailable) {
         warnedUnavailable = true;
         toast.error('Could not save to disk', (err as Error).message);
       }
     });
+}
+
+function isJson(text: string): boolean {
+  try {
+    JSON.parse(text);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export const fileJSONStorage: StateStorage = {
@@ -62,6 +73,23 @@ export const fileJSONStorage: StateStorage = {
       const path = await filePath(name);
       if (!(await pathExists(path))) return null;
       const text = await readTextFile(path);
+      if (text && !isJson(text)) {
+        // Writes are atomic now, but a file damaged by an older build, a sync
+        // client or a full disk shouldn't cost the user everything: fall back
+        // to the previous good copy every write keeps alongside it.
+        const backupPath = `${path}.bak`;
+        const backup = (await pathExists(backupPath)) ? await readTextFile(backupPath) : '';
+        if (backup && isJson(backup)) {
+          toast.error('Recovered from a backup', `${name}.json was unreadable, so kapi loaded the previous copy (${name}.json.bak).`);
+          return backup;
+        }
+        // Keep the damaged bytes aside before the next save replaces them —
+        // they may still be recoverable by hand.
+        const aside = `${path}.damaged-${Date.now()}`;
+        await writeTextFile(aside, text);
+        toast.error('Could not read saved data', `${name}.json was damaged and had no usable backup. A copy was kept as ${aside}.`);
+        return null;
+      }
       lastWritten.set(name, text);
       return text || null;
     } catch {
@@ -82,16 +110,18 @@ export const fileJSONStorage: StateStorage = {
     const existing = pending.get(name);
     if (existing) clearTimeout(existing.timer);
     pending.delete(name);
-    flush(name, '');
+    void flush(name, '');
   },
 };
 
-/** Forces every debounced write out immediately — call before the window closes. */
-export function flushPendingWrites() {
+/** Forces every debounced write out immediately — awaited before the window closes or the app quits. */
+export function flushPendingWrites(): Promise<void> {
+  const writes: Promise<void>[] = [];
   for (const [name, { timer, value }] of pending) {
     clearTimeout(timer);
-    flush(name, value);
+    writes.push(flush(name, value));
   }
+  return Promise.all(writes).then(() => undefined);
 }
 
 const STORE_NAMES = ['kapi.workspaces', 'kapi.session', 'kapi.history', 'kapi.run-history', 'kapi.openapi-history'];

@@ -13,28 +13,53 @@ use mock::{kapi_mock_is_running, kapi_mock_start, kapi_mock_stop, MockState};
 use mtls::kapi_send_mtls;
 use oauth::{kapi_oauth_cancel, kapi_oauth_listen, OAuthListenState};
 
-/// Reads and writes the workspace snapshot file directly, rather than through
-/// the fs plugin's ACL scope: the path always comes from the OS's own native
-/// folder picker, so it's already at the trust level the user granted by
-/// choosing it — the same trust a file-system dialog gives any desktop app.
-#[tauri::command]
-fn kapi_write_text_file(path: String, contents: String) -> Result<(), String> {
-    let target = Path::new(&path);
-    if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+/// Writes `contents` to `target` so a crash, power cut or full disk can never
+/// leave a half-written file behind: the bytes go to a sibling temp file,
+/// are flushed to disk, and only then renamed over the target (an atomic
+/// replace on the same filesystem, on every OS kapi ships for). With
+/// `backup`, the previous version is kept as `<name>.bak` first — kapi's own
+/// data files use that, so a bad write (or a bad version of kapi) is one
+/// rename away from undone.
+fn write_atomic(target: &Path, contents: &[u8], backup: bool) -> std::io::Result<()> {
+    use std::io::Write;
+    let parent = target.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or_else(|| Path::new("."));
+    fs::create_dir_all(parent)?;
+    let file_name = target.file_name().and_then(|n| n.to_str()).unwrap_or("kapi");
+    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    let tmp = parent.join(format!(".{file_name}.{}-{nanos}.tmp", std::process::id()));
+
+    let result = (|| {
+        let mut file = fs::File::create(&tmp)?;
+        file.write_all(contents)?;
+        file.sync_all()?;
+        drop(file);
+        if backup && target.exists() {
+            let bak = parent.join(format!("{file_name}.bak"));
+            fs::copy(target, &bak)?;
+        }
+        fs::rename(&tmp, target)
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&tmp);
     }
-    fs::write(target, contents).map_err(|e| e.to_string())
+    result
+}
+
+/// Reads and writes files directly, rather than through the fs plugin's ACL
+/// scope: the path always comes either from kapi's own app-data directory or
+/// from the OS's native folder/save picker, so it's already at the trust level
+/// the user granted by choosing it — the same trust a file dialog gives any
+/// desktop app.
+#[tauri::command]
+fn kapi_write_text_file(path: String, contents: String, backup: Option<bool>) -> Result<(), String> {
+    write_atomic(Path::new(&path), contents.as_bytes(), backup.unwrap_or(false)).map_err(|e| e.to_string())
 }
 
 /// Same trust rationale as the text writer — used to save response bodies and
 /// exports, which are bytes rather than a string (images, PDFs, archives).
 #[tauri::command]
 fn kapi_write_binary_file(path: String, contents: Vec<u8>) -> Result<(), String> {
-    let target = Path::new(&path);
-    if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    fs::write(target, contents).map_err(|e| e.to_string())
+    write_atomic(Path::new(&path), &contents, false).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -91,6 +116,44 @@ pub fn run() {
     })
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod write_tests {
+    use super::write_atomic;
+    use std::fs;
+
+    fn scratch() -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("kapi-write-test-{}-{:?}", std::process::id(), std::thread::current().id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn replaces_and_keeps_a_backup() {
+        let dir = scratch();
+        let file = dir.join("kapi.workspaces.json");
+        write_atomic(&file, b"one", true).unwrap();
+        assert!(!dir.join("kapi.workspaces.json.bak").exists(), "nothing to back up on first write");
+        write_atomic(&file, b"two", true).unwrap();
+        assert_eq!(fs::read_to_string(&file).unwrap(), "two");
+        assert_eq!(fs::read_to_string(dir.join("kapi.workspaces.json.bak")).unwrap(), "one");
+        let leftovers: Vec<_> = fs::read_dir(&dir).unwrap().filter_map(|e| e.ok()).filter(|e| e.file_name().to_string_lossy().ends_with(".tmp")).collect();
+        assert!(leftovers.is_empty(), "temp files are cleaned up");
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn creates_missing_directories_and_skips_backup_when_asked() {
+        let dir = scratch();
+        let file = dir.join("nested/deeper/export.json");
+        write_atomic(&file, b"a", false).unwrap();
+        write_atomic(&file, b"b", false).unwrap();
+        assert_eq!(fs::read_to_string(&file).unwrap(), "b");
+        assert!(!dir.join("nested/deeper/export.json.bak").exists());
+        fs::remove_dir_all(dir).unwrap();
+    }
 }
 
 #[cfg(test)]

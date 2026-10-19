@@ -26,7 +26,12 @@ pub fn build<R: Runtime>(app: &App<R>) -> tauri::Result<Menu<R>> {
             .item(&PredefinedMenuItem::hide_others(app, None)?)
             .item(&PredefinedMenuItem::show_all(app, None)?);
     }
-    let app_menu = app_menu.separator().item(&PredefinedMenuItem::quit(app, None)?).build()?;
+    // A custom Quit rather than the predefined one, so the frontend gets to
+    // flush any debounced writes before the process exits (see lib/exitFlush.ts).
+    let app_menu = app_menu
+        .separator()
+        .item(&MenuItemBuilder::with_id("quit", "Quit kapi").accelerator("CmdOrCtrl+Q").build(app)?)
+        .build()?;
 
     let file_menu = SubmenuBuilder::new(app, "File")
         .item(&MenuItemBuilder::with_id("new-tab", "New Request Tab").accelerator("CmdOrCtrl+T").build(app)?)

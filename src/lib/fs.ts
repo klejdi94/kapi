@@ -6,8 +6,13 @@ import { invoke } from '@tauri-apps/api/core';
  * folder picker — there's no ACL scope to configure because that choice is
  * already the trust boundary, same as any other desktop app's "Open Folder".
  */
-export async function writeTextFile(path: string, contents: string): Promise<void> {
-  await invoke('kapi_write_text_file', { path, contents });
+/**
+ * Atomic on the Rust side (temp file + rename), so a crash mid-save never
+ * truncates the file. `backup` additionally keeps the previous version as
+ * `<path>.bak` — meant for kapi's own data files, not user exports.
+ */
+export async function writeTextFile(path: string, contents: string, options: { backup?: boolean } = {}): Promise<void> {
+  await invoke('kapi_write_text_file', { path, contents, backup: options.backup ?? false });
 }
 
 export async function readTextFile(path: string): Promise<string> {
