@@ -16,6 +16,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { setScriptSandbox } from '@/lib/scripting';
+import { KAPI_VERSION } from '@/version';
 import { nodeSandbox } from '@/lib/scripting/nodeSandbox';
 import { dataDir, findAppInstall, KAPI_RELEASES_URL } from './lib/dataDir.ts';
 import { RELOAD_HINT } from './lib/fileStore.ts';
@@ -38,7 +39,7 @@ import { syncOpenApi } from './lib/openapiSync.ts';
 // in an isolated vm context, never with this process's own Node APIs.
 setScriptSandbox(nodeSandbox);
 
-const server = new McpServer({ name: 'kapi', version: '0.3.1' });
+const server = new McpServer({ name: 'kapi', version: KAPI_VERSION });
 
 function text(value: unknown) {
   return { content: [{ type: 'text' as const, text: typeof value === 'string' ? value : JSON.stringify(value, null, 2) }] };

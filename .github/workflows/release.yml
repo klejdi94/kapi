@@ -91,6 +91,57 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Code signing is opt-in: each block below only does something when its
+      # secrets exist, so a fork (or this repo before the certificates are set
+      # up) still produces the same unsigned builds as before. See
+      # docs/RELEASING.md for what each secret is and where to get it.
+      - name: Prepare macOS signing and notarization
+        if: runner.os == 'macOS'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$APPLE_CERTIFICATE" ] && [ -n "$APPLE_SIGNING_IDENTITY" ]; then
+            # tauri-action imports APPLE_CERTIFICATE into a temporary keychain itself.
+            {
+              echo "APPLE_CERTIFICATE=$APPLE_CERTIFICATE"
+              echo "APPLE_CERTIFICATE_PASSWORD=$APPLE_CERTIFICATE_PASSWORD"
+              echo "APPLE_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY"
+            } >> "$GITHUB_ENV"
+            if [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+              { echo "APPLE_ID=$APPLE_ID"; echo "APPLE_PASSWORD=$APPLE_PASSWORD"; echo "APPLE_TEAM_ID=$APPLE_TEAM_ID"; } >> "$GITHUB_ENV"
+            fi
+            echo "macOS: signing with a Developer ID certificate."
+          else
+            echo "macOS: no Developer ID certificate configured; building ad-hoc signed."
+          fi
+
+      - name: Prepare Windows signing
+        if: runner.os == 'Windows'
+        id: winsign
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if (-not $env:WINDOWS_CERTIFICATE) {
+            Write-Output "Windows: no code-signing certificate configured; building unsigned."
+            "config=" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            exit 0
+          }
+          $pfx = Join-Path $env:RUNNER_TEMP 'kapi-signing.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $password = ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -Force -AsPlainText
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          Remove-Item $pfx
+          $config = @{ bundle = @{ windows = @{ certificateThumbprint = $cert.Thumbprint; digestAlgorithm = 'sha256'; timestampUrl = 'http://timestamp.digicert.com' } } } | ConvertTo-Json -Compress -Depth 5
+          "config=--config '$config'" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Output "Windows: signing with certificate $($cert.Thumbprint)."
+
       - name: Build and upload
         uses: tauri-apps/tauri-action@v1
         env:
@@ -99,4 +150,4 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
-          args: ${{ matrix.args }}
+          args: ${{ matrix.args }} ${{ steps.winsign.outputs.config }}

@@ -7,13 +7,10 @@
  * prior registration under the same name instead of duplicating it.
  */
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { mkdirSync, copyFileSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
-
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const serverPath = join(repoRoot, 'mcp', 'server.ts');
 
 function hasCli(name: string): boolean {
   try {
@@ -34,52 +31,64 @@ function run(command: string, args: string[]): boolean {
   }
 }
 
-console.log(`Registering kapi's MCP server (${serverPath}) on installed AI CLIs...\n`);
+/**
+ * `launch` is the command an AI CLI should run to start the server: `npx tsx
+ * <repo>/mcp/server.ts` from a clone, or `npx -y kapi mcp` from the npm package.
+ */
+export function installMcp(launch: string[], skillSource: string): void {
+  console.log(`Registering kapi's MCP server (${launch.join(' ')}) on installed AI CLIs...\n`);
 
-// `-s user` / `--scope user` on both: kapi is meant to be reachable from
-// whatever backend project the AI is invoked in, not only this repo, so the
-// default project/local scope each CLI otherwise picks is the wrong one.
-// codex has no scope flag — `codex mcp add` already registers globally.
-let any = false;
-if (hasCli('claude')) {
-  any = true;
-  console.log('› claude mcp add kapi');
-  run('claude', ['mcp', 'add', 'kapi', '-s', 'user', '--', 'npx', 'tsx', serverPath]);
-} else {
-  console.log('· claude CLI not found, skipping');
-}
-
-if (hasCli('codex')) {
-  any = true;
-  console.log('› codex mcp add kapi');
-  run('codex', ['mcp', 'add', 'kapi', '--', 'npx', 'tsx', serverPath]);
-} else {
-  console.log('· codex CLI not found, skipping');
-}
-
-if (hasCli('gemini')) {
-  any = true;
-  console.log('› gemini mcp add kapi');
-  run('gemini', ['mcp', 'add', 'kapi', 'npx', 'tsx', serverPath, '-s', 'user']);
-} else {
-  console.log('· gemini CLI not found, skipping');
-}
-
-// Claude Code skills are discovered globally from ~/.claude/skills/<name>/SKILL.md.
-// Codex and Gemini have no equivalent concept — for those the MCP tools'
-// own descriptions carry the same guidance instead.
-const skillDir = join(homedir(), '.claude', 'skills', 'kapi');
-try {
-  mkdirSync(skillDir, { recursive: true });
-  const src = join(repoRoot, 'mcp', 'skill', 'SKILL.md');
-  if (existsSync(src)) {
-    copyFileSync(src, join(skillDir, 'SKILL.md'));
-    console.log(`\n✓ Installed the kapi skill for Claude Code at ${join(skillDir, 'SKILL.md')}`);
+  // `-s user` / `--scope user` on both: kapi is meant to be reachable from
+  // whatever backend project the AI is invoked in, not only this repo, so the
+  // default project/local scope each CLI otherwise picks is the wrong one.
+  // codex has no scope flag — `codex mcp add` already registers globally.
+  let any = false;
+  if (hasCli('claude')) {
+    any = true;
+    console.log('› claude mcp add kapi');
+    run('claude', ['mcp', 'add', 'kapi', '-s', 'user', '--', ...launch]);
+  } else {
+    console.log('· claude CLI not found, skipping');
   }
-} catch (err) {
-  console.error(`\n✗ Could not install the Claude Code skill: ${(err as Error).message}`);
+
+  if (hasCli('codex')) {
+    any = true;
+    console.log('› codex mcp add kapi');
+    run('codex', ['mcp', 'add', 'kapi', '--', ...launch]);
+  } else {
+    console.log('· codex CLI not found, skipping');
+  }
+
+  if (hasCli('gemini')) {
+    any = true;
+    console.log('› gemini mcp add kapi');
+    run('gemini', ['mcp', 'add', 'kapi', ...launch, '-s', 'user']);
+  } else {
+    console.log('· gemini CLI not found, skipping');
+  }
+
+  // Claude Code skills are discovered globally from ~/.claude/skills/<name>/SKILL.md.
+  // Codex and Gemini have no equivalent concept — for those the MCP tools'
+  // own descriptions carry the same guidance instead.
+  const skillDir = join(homedir(), '.claude', 'skills', 'kapi');
+  try {
+    mkdirSync(skillDir, { recursive: true });
+    const src = skillSource;
+    if (existsSync(src)) {
+      copyFileSync(src, join(skillDir, 'SKILL.md'));
+      console.log(`\n✓ Installed the kapi skill for Claude Code at ${join(skillDir, 'SKILL.md')}`);
+    }
+  } catch (err) {
+    console.error(`\n✗ Could not install the Claude Code skill: ${(err as Error).message}`);
+  }
+
+  if (!any) {
+    console.log('\nNo supported AI CLI (claude, codex, gemini) was found on PATH — install one first, then run this again.');
+  }
 }
 
-if (!any) {
-  console.log('\nNo supported AI CLI (claude, codex, gemini) was found on PATH — install one first, then re-run `npm run mcp:install`.');
+// Run directly from a clone (`npm run mcp:install`).
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+  installMcp(['npx', 'tsx', join(repoRoot, 'mcp', 'server.ts')], join(repoRoot, 'mcp', 'skill', 'SKILL.md'));
 }

@@ -16,7 +16,8 @@
     "mcp:install": "tsx mcp/install.ts",
     "tauri": "tauri",
     "desktop:dev": "tauri dev",
-    "desktop:build": "tauri build"
+    "desktop:build": "tauri build",
+    "build:npm": "node scripts/build-npm.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.7.1",
@@ -58,6 +59,7 @@
     "tsx": "^4.23.13",
     "typescript": "^5.7.2",
     "vite": "^6.0.5",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.0",
+    "esbuild": "^0.25.12"
   }
 }

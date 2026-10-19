@@ -1,0 +1,46 @@
+name: publish-npm
+
+# Publishes the headless CLI + MCP server (`npx kapi`) when a GitHub release is
+# published — i.e. when the draft the release workflow made is made public, so
+# npm and the desktop downloads go out together. Needs an NPM_TOKEN secret
+# (an npm automation token); without one this job explains and skips.
+on:
+  release:
+    types: [published]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  id-token: write # npm provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build:npm
+
+      - name: Check the bundle starts
+        run: |
+          node npm/dist/kapi.js --version
+          test "$(node npm/dist/kapi.js --version)" = "$(node -p "require('./package.json').version")"
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::warning::NPM_TOKEN is not set — skipping npm publish. See docs/RELEASING.md."
+            exit 0
+          fi
+          npm publish ./npm --provenance --access public

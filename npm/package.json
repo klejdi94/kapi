@@ -1,0 +1,33 @@
+{
+  "name": "kapi",
+  "version": "0.3.1",
+  "description": "kapi, headless: run API collections (kapi or Postman v2.1) from a terminal or CI, and let an AI CLI drive kapi through MCP.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "kapi": "dist/kapi.js"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/klejdi94/kapi.git"
+  },
+  "homepage": "https://github.com/klejdi94/kapi",
+  "bugs": "https://github.com/klejdi94/kapi/issues",
+  "keywords": [
+    "api",
+    "api-client",
+    "postman",
+    "collection-runner",
+    "mcp",
+    "testing",
+    "ci"
+  ]
+}
