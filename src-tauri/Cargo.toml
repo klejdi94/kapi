@@ -23,7 +23,7 @@ serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 # No "devtools" feature: the web inspector is compiled out of release builds.
 # `tauri dev` still gets it, which is where it belongs.
-tauri = { version = "2.11.3", features = [] }
+tauri = { version = "2.12", features = [] }
 tauri-plugin-log = "2"
 tauri-plugin-http = "2"
 tauri-plugin-shell = "2"
@@ -55,7 +55,7 @@ http = "1"
 tokio-stream = "0.1"
 tokio = { version = "1", default-features = false, features = ["rt"] }
 base64 = "0.22"
-tauri-plugin-notification = "2"
+tauri-plugin-notification = "2.7"
 
 [dev-dependencies]
 regex = "1"

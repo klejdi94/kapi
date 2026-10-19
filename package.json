@@ -20,7 +20,8 @@
     "build:npm": "node scripts/build-npm.mjs",
     "test:e2e": "playwright test",
     "postinstall": "node scripts/build-sandbox-libs.mjs",
-    "build:sandbox-libs": "node scripts/build-sandbox-libs.mjs"
+    "build:sandbox-libs": "node scripts/build-sandbox-libs.mjs",
+    "check:tauri": "node scripts/check-tauri-versions.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.7.1",
@@ -56,7 +57,7 @@
   "devDependencies": {
     "@playwright/test": "^1.56.0",
     "@tailwindcss/vite": "^4.0.0",
-    "@tauri-apps/cli": "^2.11.4",
+    "@tauri-apps/cli": "~2.12",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
