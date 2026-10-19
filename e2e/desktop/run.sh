@@ -20,6 +20,12 @@ fail() {
 command -v tauri-driver >/dev/null || fail "tauri-driver is not installed"
 command -v WebKitWebDriver >/dev/null || fail "WebKitWebDriver is not installed (webkit2gtk-driver)"
 
+# Python's user site-packages hang off $HOME, which is about to change, so
+# remember where a `pip install --user selenium` put things first.
+PYTHONUSERBASE="$(python3 -m site --user-base 2>/dev/null || true)"
+export PYTHONUSERBASE
+python3 -c 'import selenium' 2>/dev/null || fail "python3 can't import selenium (pip install selenium)"
+
 # A throwaway profile, so the run never touches real kapi data.
 profile="$(mktemp -d)"
 export HOME="$profile" XDG_DATA_HOME="$profile/.local/share" XDG_CONFIG_HOME="$profile/.config"
