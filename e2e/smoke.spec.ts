@@ -55,6 +55,24 @@ test('runs a short load test from the Runner', async ({ page }) => {
   await expect(page.getByText('Req/s', { exact: true })).toBeVisible();
 });
 
+test('compares a load test with the previous one', async ({ page }) => {
+  await page.getByText('Getting started', { exact: true }).first().click();
+  await page.getByRole('button', { name: /^Run/ }).first().click();
+  await page.getByRole('tab', { name: 'Load test' }).click();
+  await page.getByRole('tab', { name: 'For N iterations' }).click();
+  await page.getByLabel('Virtual users').fill('1');
+  await page.getByLabel('Iterations / user').fill('1');
+  await page.getByRole('button', { name: 'Start load test' }).click();
+  await expect(page.getByRole('button', { name: 'New test' })).toBeVisible({ timeout: 20_000 });
+  // The first test has nothing to compare against…
+  await expect(page.getByText(/compared with the previous load test/)).toHaveCount(0);
+  await page.getByRole('button', { name: 'New test' }).click();
+  await page.getByRole('button', { name: 'Start load test' }).click();
+  await expect(page.getByRole('button', { name: 'New test' })).toBeVisible({ timeout: 20_000 });
+  // …the second one does.
+  await expect(page.getByText(/compared with the previous load test/)).toBeVisible();
+});
+
 test('creates a monitor and runs it now', async ({ page }) => {
   await page.getByText('Getting started', { exact: true }).first().click();
   await page.getByRole('tab', { name: /^Monitors/ }).click();

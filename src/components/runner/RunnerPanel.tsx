@@ -3,6 +3,8 @@ import { FileDown, FileUp, Play, Square, X } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Button, IconButton, Field, Input, Segmented } from '@/components/ui/primitives';
 import { LoadTestView } from './LoadTestView';
+import { RegressionPanel } from './RegressionPanel';
+import { compareRuns, samplesFromHistory, statsFromSamples, type RunComparison } from '@/lib/regression';
 import { useActiveWorkspace, findCollection } from '@/store/workspaces';
 import { useRunner } from '@/store/runner';
 import { useRunHistory } from '@/store/runHistory';
@@ -72,6 +74,7 @@ export function RunnerPanel() {
   const finish = useRunner((s) => s.finish);
 
   const [mode, setMode] = useState<'run' | 'load'>('run');
+  const [comparison, setComparison] = useState<{ result: RunComparison; label: string } | null>(null);
   const [iterations, setIterations] = useState(1);
   const [delayMs, setDelayMs] = useState(0);
   const [dataRows, setDataRows] = useState<Record<string, string>[]>([]);
@@ -117,6 +120,7 @@ export function RunnerPanel() {
     const controller = new AbortController();
     const startedAt = Date.now();
     start(controller);
+    setComparison(null);
     try {
       await runCollection({
         workspaceId: workspace.id,
@@ -139,6 +143,10 @@ export function RunnerPanel() {
       if (finalResults.length) {
         const scoped = scopeNodeId ? locate(collection.items, scopeNodeId) : null;
         const scopeName = scoped?.node.type === 'folder' ? scoped.node.name : null;
+        const scopedName = scopeNodeId ? locate(collection.items, scopeNodeId) : null;
+        const previous = useRunHistory
+          .getState()
+          .entries.find((e) => !e.monitorId && e.collectionId === collection.id && e.scopeName === (scopedName?.node.type === 'folder' ? scopedName.node.name : null));
         useRunHistory.getState().add({
           id: uid(),
           collectionId: collection.id,
@@ -166,6 +174,13 @@ export function RunnerPanel() {
             testsTotal: r.tests.length,
           })),
         });
+        if (previous) {
+          const current = useRunHistory.getState().entries[0];
+          setComparison({
+            result: compareRuns(statsFromSamples(samplesFromHistory([previous])), statsFromSamples(samplesFromHistory([current]))),
+            label: `the previous run (${new Date(previous.at).toLocaleString()})`,
+          });
+        }
       }
     }
   };
@@ -267,6 +282,8 @@ export function RunnerPanel() {
             )}
           </div>
         )}
+
+        {done && comparison && <RegressionPanel comparison={comparison.result} baselineLabel={comparison.label} />}
 
         <div className="max-h-80 min-h-[3rem] overflow-y-auto rounded-md border border-line">
           {results.length === 0 ? (

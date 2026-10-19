@@ -17,6 +17,11 @@ All notable changes to kapi. Versions follow [semver](https://semver.org).
   pulling keeps your local values.
 
 ### Added
+- **Performance regressions between runs**: the Runner and load tests compare each request's p50/p95
+  and error rate with the previous run and show what got slower or better. Monitors compare their
+  last 3 runs with the 10 before and notify once when a request slows down. `kapi run`/`load` take
+  `--baseline`, `--save-baseline` and `--fail-on-regression`. A regression needs +20% *and* +50 ms
+  with at least 3 samples (or +1 point of errors), so noise doesn't raise alarms.
 - **Secrets from 1Password, AWS Secrets Manager and HashiCorp Vault**: an environment or global
   variable set to `op://…`, `awssm://…` or `vault://…` is read through that tool's CLI right before
   each request and never stored. Each reference asks for permission once in a native dialog that

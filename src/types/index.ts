@@ -328,6 +328,9 @@ export interface Monitor {
   lastRunAt?: number;
   lastStatus?: 'passed' | 'failed' | 'error';
   lastSummary?: string;
+  /** Whether the last few runs are slower or more error-prone than the ones before (see regression.ts). */
+  lastPerf?: 'ok' | 'regressed';
+  lastPerfSummary?: string;
 }
 
 /* ---------------------------------------------------------------- responses */

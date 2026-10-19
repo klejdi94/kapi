@@ -34,7 +34,14 @@
  *   --no-scripts             Skip pre-request/test scripts for raw throughput
  *   --threshold <expr>       Fail the run unless it holds, e.g. p95<500, errors<1, rps>=50 (repeatable)
  *
- * Exit codes: 0 all good, 1 test/threshold failure, 2 usage or config problem.
+ * Performance regressions (run and load):
+ *   --baseline <file.json>   Compare with an earlier run: a --save-baseline file, or a
+ *                            previous `kapi run --json` / `kapi load --json` output
+ *   --save-baseline <file>   Write this run's per-request stats for the next comparison
+ *   --fail-on-regression     Exit 1 when a request got meaningfully slower or more error-prone
+ *                            (p50/p95 +20% and +50ms with ≥3 samples, or errors +1 point)
+ *
+ * Exit codes: 0 all good, 1 test/threshold/regression failure, 2 usage or config problem.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve as resolvePath } from 'node:path';
@@ -51,6 +58,7 @@ import { memoryCookieJar, withCookieJar } from '@/lib/cookieSend';
 import type { VarScope } from '@/lib/variables';
 import { setSecretRefResolver } from '@/lib/secretRefs';
 import { resolveSecretRefNode } from '@/cli/secretRefsNode';
+import { compareRuns, sampleKey, statsFromBaselineFile, statsFromLoadSummary, statsFromSamples, type RunComparison, type RunStats } from '@/lib/regression';
 import { checkThreshold, startLoadTest, summarize, type LoadSample, type LoadSummary } from '@/lib/loadTest';
 
 // Collection scripts may come from anyone who shared the collection — they run
@@ -122,6 +130,9 @@ interface Args {
   json: boolean;
   cookies: boolean;
   secretRefs: boolean;
+  baseline: string | null;
+  saveBaseline: string | null;
+  failOnRegression: boolean;
   exportEnv: string | null;
   exportGlobals: string | null;
   vus: number;
@@ -135,7 +146,7 @@ interface Args {
 function parseArgs(argv: string[]): Args {
   const [command, file, ...rest] = argv;
   const args: Args = {
-    command, file, env: null, globals: null, folder: null, iterations: null, data: null, delay: 0, json: false, cookies: true, secretRefs: false,
+    command, file, env: null, globals: null, folder: null, iterations: null, data: null, delay: 0, json: false, cookies: true, secretRefs: false, baseline: null, saveBaseline: null, failOnRegression: false,
     exportEnv: null, exportGlobals: null, vus: 10, durationMs: null, rampUpMs: 0, thinkMs: 0, scripts: true, thresholds: [],
   };
   const value = (i: number, flag: string) => {
@@ -155,6 +166,9 @@ function parseArgs(argv: string[]): Args {
       case '--json': args.json = true; break;
       case '--no-cookies': args.cookies = false; break;
       case '--secret-refs': args.secretRefs = true; break;
+      case '--baseline': args.baseline = value(++i, flag); break;
+      case '--save-baseline': args.saveBaseline = value(++i, flag); break;
+      case '--fail-on-regression': args.failOnRegression = true; break;
       case '--export-environment': args.exportEnv = value(++i, flag); break;
       case '--export-globals': args.exportGlobals = value(++i, flag); break;
       case '--vus': args.vus = positiveInt(value(++i, flag), flag); break;
@@ -214,9 +228,21 @@ async function runCommand(args: Args) {
   if (args.exportEnv) writeJson(args.exportEnv, exportPostmanEnvironment(final.environment));
   if (args.exportGlobals) writeJson(args.exportGlobals, exportPostmanEnvironment({ id: 'globals', name: 'Globals', variables: final.globals }));
 
+  const stats = statsFromSamples(
+    results.map((r) => {
+      const key = sampleKey(r.method, r.path, r.name);
+      return { key, label: key, durationMs: r.durationMs, ok: r.status === 'passed' };
+    }),
+  );
+  const regression = handleBaseline(args, stats);
+
   if (args.json) console.log(JSON.stringify(results, null, 2));
-  else printHuman(results);
-  return results.every((r) => r.status === 'passed') ? 0 : 1;
+  else {
+    printHuman(results);
+    if (regression) printRegression(regression, args.baseline!);
+  }
+  const testsOk = results.every((r) => r.status === 'passed');
+  return testsOk && !(args.failOnRegression && regression?.regressed) ? 0 : 1;
 }
 
 function ms(n: number) {
@@ -274,17 +300,42 @@ async function loadCommand(args: Args) {
 
   const summary = summarize(samples, Date.now() - started);
   const checks = thresholds.map((t) => checkThreshold(t, summary));
+  const regression = handleBaseline(args, statsFromLoadSummary(summary.byRequest));
   if (args.json) {
     const { timeline, ...rest } = summary;
-    console.log(JSON.stringify({ ...rest, timeline, thresholds: checks }, null, 2));
+    console.log(JSON.stringify({ ...rest, timeline, thresholds: checks, ...(regression ? { regression } : {}) }, null, 2));
   } else {
     printLoad(summary, args.vus);
     if (checks.length) {
       console.log('');
       for (const c of checks) console.log(`${c.passed ? '✓' : '✗'} ${c.expression} (actual ${Number.isInteger(c.actual) ? c.actual : c.actual.toFixed(2)})`);
     }
+    if (regression) printRegression(regression, args.baseline!);
   }
-  return checks.every((c) => c.passed) ? 0 : 1;
+  return checks.every((c) => c.passed) && !(args.failOnRegression && regression?.regressed) ? 0 : 1;
+}
+
+/** Reads --baseline and writes --save-baseline; returns the comparison when there was a baseline. */
+function handleBaseline(args: Args, stats: RunStats): RunComparison | null {
+  let comparison: RunComparison | null = null;
+  if (args.baseline) {
+    const baseline = statsFromBaselineFile(readJson(args.baseline));
+    if (!baseline) throw new UsageError(`${args.baseline} isn't a baseline: use a --save-baseline file, or \`kapi run --json\` / \`kapi load --json\` output.`);
+    comparison = compareRuns(baseline, stats);
+  }
+  if (args.saveBaseline) writeJson(args.saveBaseline, stats);
+  return comparison;
+}
+
+function printRegression(comparison: RunComparison, baselineFile: string) {
+  console.log('');
+  console.log(comparison.regressed ? `✗ ${comparison.regressed} regression(s) vs ${baselineFile}` : `✓ no regressions vs ${baselineFile}`);
+  for (const c of comparison.changes) {
+    if (c.kind === 'regressed' || c.kind === 'improved') console.log(`  ${c.kind === 'regressed' ? '↓' : '↑'} ${c.label} — ${c.reasons.join(' · ')}`);
+    else if (c.kind === 'new' || c.kind === 'removed') console.log(`  · ${c.label} — ${c.kind}`);
+  }
+  const tooFew = comparison.changes.filter((c) => c.kind === 'too-few-samples').length;
+  if (tooFew) console.log(`  (${tooFew} request(s) had under 3 samples on a side; latency not judged — use --iterations)`);
 }
 
 const USAGE = 'Usage: kapi run|load <collection.json> [options] — see `kapi --help`';

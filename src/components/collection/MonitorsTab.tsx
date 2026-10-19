@@ -98,6 +98,9 @@ export function MonitorsTab({ collection }: { collection: Collection }) {
               <span className="text-[11px] text-faint">last run {timeAgo(m.lastRunAt)}</span>
             </div>
             {m.lastSummary && <p className="mt-1 text-[11.5px] text-dim">{m.lastSummary}</p>}
+            {m.lastPerf === 'regressed' && m.lastPerfSummary && (
+              <p className="mt-0.5 text-[11.5px] text-danger">Slower than usual — {m.lastPerfSummary}</p>
+            )}
             <div className="mt-3 grid grid-cols-4 gap-2">
               <Field label="Runs">
                 <Select value={m.scopeNodeId ?? ''} onChange={(e) => updateMonitor(m.id, { scopeNodeId: e.target.value || null })}>

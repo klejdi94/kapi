@@ -29,6 +29,7 @@ Options for run and load:
 run:   --iterations <n>  --delay <ms>  --export-environment <file>  --export-globals <file>
 load:  --vus <n>  --duration 30s  --iterations <n>  --ramp-up 10s  --think <ms>  --no-scripts
        --threshold p95<500  (repeatable; metrics p50 p90 p95 p99 max mean errors rps)
+both:  --baseline <file>  --save-baseline <file>  --fail-on-regression
 
 Exit codes: 0 all passed, 1 test or threshold failure, 2 usage/config problem.
 

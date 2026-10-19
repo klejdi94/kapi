@@ -11,6 +11,10 @@ import { send } from '@/lib/send';
 import { methodVar } from '@/lib/methodColor';
 import { saveFile } from '@/lib/saveFile';
 import { toast } from '@/lib/toast';
+import { uid } from '@/lib/factory';
+import { compareRuns, statsFromLoadSummary, type RunComparison } from '@/lib/regression';
+import { previousLoadTest, useLoadHistory } from '@/store/loadHistory';
+import { RegressionPanel } from './RegressionPanel';
 
 function ms(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(2)}s` : `${Math.round(n)}ms`;
@@ -82,6 +86,7 @@ export function LoadTestView({ collection, scopeNodeId }: { collection: Collecti
 
   const [running, setRunning] = useState(false);
   const [summary, setSummary] = useState<LoadSummary | null>(null);
+  const [comparison, setComparison] = useState<{ result: RunComparison; label: string } | null>(null);
   const samples = useRef<LoadSample[]>([]);
   const runRef = useRef<LoadTestRun | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
@@ -100,6 +105,7 @@ export function LoadTestView({ collection, scopeNodeId }: { collection: Collecti
     const controller = new AbortController();
     controllerRef.current = controller;
     samples.current = [];
+    setComparison(null);
     setSummary(summarize([], 1));
     setRunning(true);
     const startedAt = Date.now();
@@ -128,9 +134,32 @@ export function LoadTestView({ collection, scopeNodeId }: { collection: Collecti
       await run.done;
     } finally {
       clearInterval(tick);
-      setSummary(summarize(samples.current, Date.now() - startedAt));
+      const final = summarize(samples.current, Date.now() - startedAt);
+      setSummary(final);
       setRunning(false);
       runRef.current = null;
+      if (final.requests > 0) {
+        const stats = statsFromLoadSummary(final.byRequest, startedAt);
+        const previous = previousLoadTest(collection.id, scopeNodeId);
+        setComparison(
+          previous
+            ? { result: compareRuns(previous.stats, stats), label: `the previous load test (${new Date(previous.at).toLocaleString()}, ${previous.virtualUsers} users)` }
+            : null,
+        );
+        useLoadHistory.getState().add({
+          id: uid(),
+          collectionId: collection.id,
+          scopeNodeId,
+          at: startedAt,
+          virtualUsers: vus,
+          durationMs: final.elapsedMs,
+          requests: final.requests,
+          throughput: final.throughput,
+          errorRate: final.errorRate,
+          p95: final.latency.p95,
+          stats,
+        });
+      }
     }
   };
 
@@ -208,6 +237,7 @@ export function LoadTestView({ collection, scopeNodeId }: { collection: Collecti
               <span className="ml-auto">{Object.entries(summary.statusCodes).map(([code, n]) => `${code}×${n}`).join('  ')}</span>
             </div>
           </div>
+          {!running && comparison && <RegressionPanel comparison={comparison.result} baselineLabel={comparison.label} />}
           {summary.byRequest.length > 0 && (
             <div className="max-h-36 overflow-y-auto rounded-md border border-line">
               <table className="w-full text-[11.5px]">

@@ -252,6 +252,13 @@ npx kapi load my-collection.kapi.json --env staging.json --vus 50 --duration 2m 
   --threshold "p95<400" --threshold "errors<1"
 ```
 
+Catch slowdowns between builds: save a baseline on `main`, compare pull requests against it.
+
+```bash
+npx kapi run api.kapi.json --iterations 10 --save-baseline perf-baseline.json      # on main
+npx kapi run api.kapi.json --iterations 10 --baseline perf-baseline.json --fail-on-regression
+```
+
 ---
 
 ## Let an AI CLI drive kapi

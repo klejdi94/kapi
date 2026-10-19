@@ -4,6 +4,7 @@ import { useConsole } from '@/store/console';
 import { isDesktop } from './transport';
 import { toast } from './toast';
 import { isDue, runMonitor, shouldNotify } from './monitors';
+import { compareRecentToHistory } from './regression';
 import type { Monitor } from '@/types';
 
 const TICK_MS = 30_000;
@@ -44,7 +45,20 @@ export async function runMonitorNow(monitor: Monitor): Promise<void> {
       const verb = outcome.status === 'passed' ? 'recovered' : outcome.status === 'failed' ? 'failed' : 'errored';
       await notify(`kapi monitor ${verb}: ${monitor.name}`, outcome.summary);
     }
-    useWorkspaces.getState().updateMonitor(monitor.id, { lastRunAt: Date.now(), lastStatus: outcome.status, lastSummary: outcome.summary });
+    // Performance: the last 3 runs against the 10 before them, so one slow
+    // sample never triggers anything; notify once on the way into a regression.
+    const history = useRunHistory.getState().entries.filter((e) => e.monitorId === monitor.id);
+    const perf = compareRecentToHistory(history);
+    let perfPatch: Partial<Monitor> = {};
+    if (perf) {
+      const regressed = perf.changes.filter((c) => c.kind === 'regressed');
+      const lastPerfSummary = regressed.length ? `${regressed[0].label}: ${regressed[0].reasons.join(', ')}${regressed.length > 1 ? ` (+${regressed.length - 1} more)` : ''}` : undefined;
+      perfPatch = { lastPerf: regressed.length ? 'regressed' : 'ok', lastPerfSummary };
+      if (regressed.length && monitor.lastPerf !== 'regressed' && monitor.notify !== 'never') {
+        await notify(`kapi monitor got slower: ${monitor.name}`, lastPerfSummary!);
+      }
+    }
+    useWorkspaces.getState().updateMonitor(monitor.id, { lastRunAt: Date.now(), lastStatus: outcome.status, lastSummary: outcome.summary, ...perfPatch });
   } finally {
     running.delete(monitor.id);
   }
