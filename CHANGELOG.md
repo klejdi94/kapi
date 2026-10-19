@@ -14,6 +14,16 @@ All notable changes to kapi. Versions follow [semver](https://semver.org).
 - Secret variables are encrypted at rest with a key stored in the OS keychain.
 
 ### Added
+- **gRPC**: schemas from server reflection or `.proto` files (compiled in-app, imports included),
+  unary and all three streaming kinds, metadata, deadlines, TLS and mTLS, streamed responses shown
+  live. Saved gRPC requests keep their compiled schema.
+- **Load testing** in the Runner and as `kapi load`: concurrent virtual users for a duration or
+  N iterations, ramp-up, think time, live p50/p95/p99, throughput and errors, per-request breakdown,
+  JSON export, and `--threshold` checks for CI.
+- **AWS Signature V4** and **HTTP Digest** (MD5/SHA-256) authentication.
+- `kapi run` keeps cookies between requests and gains `--globals`, `--export-environment` and
+  `--export-globals`.
+- A desktop end-to-end suite that drives the real app in CI.
 - `npx kapi run`, `npx kapi mcp` and `npx kapi mcp install` — no clone needed.
 - Much fuller `pm` API: chai-style `pm.expect`, `pm.response.to.have.status/header/jsonBody`,
   `pm.response.to.be.ok/json`, `pm.sendRequest` (callbacks or `await`), `pm.iterationData`,
@@ -24,6 +34,7 @@ All notable changes to kapi. Versions follow [semver](https://semver.org).
 - Optional macOS Developer ID / notarization and Windows Authenticode signing in the release workflow.
 
 ### Fixed
+- Requests to a non-default port (e.g. `localhost:3000`) were refused by the desktop app's HTTP scope.
 - Saves are atomic, keep a `.bak` of the previous version, and recover from a damaged file.
 - Closing the window or quitting right after an edit no longer risks losing it.
 - Disabled variables were dropped whenever a script ran.

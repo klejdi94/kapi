@@ -11,7 +11,9 @@
       "identifier": "http:default",
       "allow": [
         { "url": "http://*/*" },
-        { "url": "https://*/*" }
+        { "url": "https://*/*" },
+        { "url": "http://*:*/*" },
+        { "url": "https://*:*/*" }
       ]
     },
     {
@@ -52,6 +54,10 @@
     "allow-kapi-send-mtls",
     "allow-kapi-ai-list-available",
     "allow-kapi-ai-prompt",
-    "allow-kapi-secrets-key"
+    "allow-kapi-secrets-key",
+    "allow-kapi-grpc-load-protos",
+    "allow-kapi-grpc-reflect",
+    "allow-kapi-grpc-call",
+    "allow-kapi-grpc-cancel"
   ]
 }

@@ -43,6 +43,18 @@ reqwest = { version = "0.12.28", default-features = false, features = ["blocking
 # The pure-Rust D-Bus backend avoids a libdbus build dependency on Linux.
 keyring = { version = "3", features = ["apple-native", "windows-native", "async-secret-service", "tokio", "crypto-rust"] }
 getrandom = "0.2"
+# gRPC: dynamic messages from .proto files (compiled at runtime by protox, a
+# pure-Rust protoc) or from server reflection — no generated code per API.
+tonic = { version = "0.14", default-features = false, features = ["transport", "codegen", "tls-ring", "tls-native-roots"] }
+tonic-reflection = { version = "0.14", default-features = false }
+prost = "0.14"
+prost-reflect = { version = "0.16", features = ["serde"] }
+protox = "0.10"
+prost-types = "0.14"
+http = "1"
+tokio-stream = "0.1"
+tokio = { version = "1", default-features = false, features = ["rt"] }
+base64 = "0.22"
 
 [dev-dependencies]
 regex = "1"

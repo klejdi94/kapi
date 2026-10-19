@@ -1,20 +1,5 @@
 import { nanoid } from 'nanoid';
-import type {
-  AuthConfig,
-  BodyConfig,
-  Collection,
-  Environment,
-  FolderNode,
-  KV,
-  MockRoute,
-  RequestDef,
-  RequestNode,
-  RequestSettings,
-  Tab,
-  WebSocketNode,
-  WebSocketRequestDef,
-  Workspace,
-} from '@/types';
+import type { AuthConfig, BodyConfig, Collection, Environment, FolderNode, KV, MockRoute, RequestDef, RequestNode, RequestSettings, Tab, WebSocketNode, WebSocketRequestDef, Workspace, GrpcNode, GrpcRequestDef } from '@/types';
 
 export const uid = (): string => nanoid(10);
 
@@ -182,6 +167,26 @@ export function newWebSocketRequest(partial: Partial<WebSocketRequestDef> = {}):
 
 export function newWebSocketNode(name = 'New WebSocket', request?: Partial<WebSocketRequestDef>): WebSocketNode {
   return { id: uid(), type: 'websocket', name, request: newWebSocketRequest(request) };
+}
+
+export function newGrpcRequest(partial: Partial<GrpcRequestDef> = {}): GrpcRequestDef {
+  return {
+    url: 'localhost:50051',
+    schemaSource: 'reflection',
+    protoPaths: [],
+    descriptorSet: '',
+    services: [],
+    service: '',
+    method: '',
+    message: '{}',
+    metadata: [kv({ enabled: false })],
+    timeoutMs: 30_000,
+    ...partial,
+  };
+}
+
+export function newGrpcNode(name = 'New gRPC request', request?: Partial<GrpcRequestDef>): GrpcNode {
+  return { id: uid(), type: 'grpc', name, request: newGrpcRequest(request) };
 }
 
 export function newWebSocketTab(partial: Partial<Tab> = {}): Tab {

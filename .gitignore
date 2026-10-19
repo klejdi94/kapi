@@ -10,3 +10,6 @@ npm/dist
 npm/LICENSE
 test-results
 playwright-report
+e2e/desktop/node_modules
+e2e/desktop/shots
+e2e/desktop/shots.tauri-driver.log

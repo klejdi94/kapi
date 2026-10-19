@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { Collection, Environment, KV, MockServerConfig, RequestDef, StoredCookie, TreeNode, WebSocketRequestDef, Workspace } from '@/types';
+import type { Collection, Environment, KV, MockServerConfig, RequestDef, StoredCookie, TreeNode, WebSocketRequestDef, Workspace, GrpcRequestDef } from '@/types';
 import { newCollection, newEnvironment, newWorkspace, seedWorkspace, uid, kv } from '@/lib/factory';
 import { deepClone, insertNode, locate, mapNode, reidentify, removeNode, setAllExpanded } from '@/lib/tree';
 import { vaultedStorage } from '@/lib/vaultedStorage';
@@ -30,6 +30,7 @@ interface WorkspaceState {
   updateNode: (collectionId: string, nodeId: string, patch: Partial<TreeNode>) => void;
   updateRequest: (collectionId: string, nodeId: string, request: RequestDef) => void;
   updateWebSocketRequest: (collectionId: string, nodeId: string, request: WebSocketRequestDef) => void;
+  updateGrpcRequest: (collectionId: string, nodeId: string, request: GrpcRequestDef) => void;
   deleteNode: (collectionId: string, nodeId: string) => { node: TreeNode; parentId: string | null; index: number } | null;
   duplicateNode: (collectionId: string, nodeId: string) => void;
   moveNode: (
@@ -175,6 +176,12 @@ export const useWorkspaces = create<WorkspaceState>()(
           patchCollection(collectionId, (c) => ({
             ...c,
             items: mapNode(c.items, nodeId, (node) => (node.type === 'websocket' ? { ...node, request } : node)),
+          })),
+
+        updateGrpcRequest: (collectionId, nodeId, request) =>
+          patchCollection(collectionId, (c) => ({
+            ...c,
+            items: mapNode(c.items, nodeId, (node) => (node.type === 'grpc' ? { ...node, request } : node)),
           })),
 
         deleteNode: (collectionId, nodeId) => {

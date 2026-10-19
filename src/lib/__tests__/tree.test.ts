@@ -73,7 +73,7 @@ describe('contains', () => {
 describe('countByType', () => {
   it('tallies requests, folders and websockets at every depth', () => {
     const tree = sampleTree();
-    expect(countByType(tree)).toEqual({ requests: 2, folders: 2, websockets: 0 });
+    expect(countByType(tree)).toEqual({ requests: 2, folders: 2, websockets: 0, grpc: 0 });
   });
 });
 

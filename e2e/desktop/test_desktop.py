@@ -1,0 +1,124 @@
+"""
+Drives the real kapi desktop binary through tauri-driver (WebDriver) — the
+native webview, IPC, CSP, script sandbox, keychain and gRPC all for real.
+Run via ./run.sh, which starts the servers, a virtual display and a keyring.
+"""
+import json
+import os
+import sys
+import time
+
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.options import ArgOptions
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+
+APP = os.environ['KAPI_APP']
+SHOTS = os.environ.get('SHOTS', 'e2e-desktop-shots')
+os.makedirs(SHOTS, exist_ok=True)
+
+opts = ArgOptions()
+opts.set_capability('browserName', 'wry')
+opts.set_capability('tauri:options', {'application': APP})
+d = webdriver.Remote(command_executor='http://127.0.0.1:4444', options=opts)
+wait = WebDriverWait(d, 25)
+failures = []
+
+
+def check(name, condition, detail=''):
+    print(f"{'✓' if condition else '✗'} {name}{'' if condition else f' — {detail}'}")
+    if not condition:
+        failures.append(name)
+
+
+def clickable(xpath):
+    return wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
+
+
+def button(text):
+    return clickable(f"//button[normalize-space(.)='{text}']")
+
+
+def tab(text):
+    return clickable(f"//*[@role='tab' and starts-with(normalize-space(.), '{text}')]")
+
+
+def replace_editor(index, text):
+    editor = d.find_elements(By.CSS_SELECTOR, '.cm-content')[index]
+    editor.click()
+    editor.send_keys(Keys.CONTROL, 'a')
+    editor.send_keys(Keys.DELETE)
+    editor.send_keys(text)
+
+
+try:
+    wait.until(EC.presence_of_element_located((By.XPATH, "//*[normalize-space(.)='Getting started']")))
+    time.sleep(1)
+
+    # --- webview hardening
+    d.execute_script("const s=document.createElement('script'); s.textContent='window.__inline=1'; document.body.appendChild(s);")
+    check('CSP blocks injected inline scripts', d.execute_script('return window.__inline === undefined'))
+    key = d.execute_async_script("const done = arguments[0]; window.__TAURI_INTERNALS__.invoke('kapi_secrets_key').then(done, (e) => done('ERR ' + e));")
+    check('secrets key comes from the OS keychain', isinstance(key, str) and len(key) == 64, key)
+
+    # --- HTTP with sandboxed scripts
+    clickable("//*[normalize-space(.)='Untitled request']").click()
+    url = wait.until(EC.presence_of_element_located((By.XPATH, "//input[contains(@placeholder, 'paste a cURL command')]")))
+    url.send_keys(Keys.CONTROL, 'a')
+    url.send_keys('http://127.0.0.1:18090/echo')
+    tab('Scripts').click()
+    tab('Pre-request').click()
+    replace_editor(0, "pm.request.headers.add({ key: 'X-From-Script', value: 'yes' });")
+    tab('Tests').click()
+    replace_editor(
+        0,
+        "pm.test('header arrived', () => pm.expect(pm.response.json().headers['x-from-script']).to.equal('yes'));\n"
+        "pm.test('no app access', () => pm.expect(typeof __TAURI_INTERNALS__).to.equal('undefined'));\n"
+        "pm.test('status', () => pm.response.to.have.status(200));",
+    )
+    button('Send').click()
+    wait.until(EC.presence_of_element_located((By.XPATH, "//*[normalize-space(.)='200 OK']")))
+    # The response pane's Tests tab is the last one with that name (the first is the script editor's).
+    clickable("(//*[@role='tab' and starts-with(normalize-space(.), 'Tests')])[last()]").click()
+    wait.until(EC.presence_of_element_located((By.XPATH, "//*[normalize-space(.)='3/3']")))
+    d.save_screenshot(f'{SHOTS}/http-scripts.png')
+    check('pre-request script edits the request and tests pass in the sandbox', True)
+
+    # --- gRPC
+    d.find_element(By.TAG_NAME, 'body').send_keys(Keys.CONTROL, 'k')
+    time.sleep(0.4)
+    d.switch_to.active_element.send_keys('New gRPC tab')
+    time.sleep(0.3)
+    d.switch_to.active_element.send_keys(Keys.ENTER)
+    url = wait.until(EC.presence_of_element_located((By.XPATH, "//input[starts-with(@placeholder, 'localhost:50051')]")))
+    url.send_keys(Keys.CONTROL, 'a')
+    url.send_keys('127.0.0.1:50077')
+    button('Server reflection').click()
+    wait.until(EC.presence_of_element_located((By.XPATH, "//option[normalize-space(.)='demo.v1.Greeter']")))
+    methods = [o.text for o in d.find_elements(By.XPATH, "//select[@aria-label='Method']/option")]
+    check('reflection lists all four method kinds', len(methods) == 4, methods)
+
+    replace_editor(0, '{"name": "kapi"}')
+    button('Invoke').click()
+    wait.until(EC.presence_of_element_located((By.XPATH, "//pre[contains(., 'Hello kapi')]")))
+    check('unary call', True)
+
+    for option in d.find_elements(By.XPATH, "//select[@aria-label='Method']/option"):
+        if option.text.startswith('CountTo'):
+            option.click()
+    replace_editor(0, '{"n": 4}')
+    button('Invoke').click()
+    wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(., '4 messages')]")))
+    check('server streaming delivers every message', len(d.find_elements(By.XPATH, "//pre[contains(., '\"n\"')]")) == 4)
+    d.save_screenshot(f'{SHOTS}/grpc-stream.png')
+except Exception as exc:  # noqa: BLE001 — report and screenshot whatever broke
+    failures.append(f'exception: {exc!r}'[:300])
+    print(failures[-1])
+    d.save_screenshot(f'{SHOTS}/failure.png')
+finally:
+    d.quit()
+
+print(json.dumps({'failures': failures}))
+sys.exit(1 if failures else 0)

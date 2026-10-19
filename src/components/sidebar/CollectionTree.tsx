@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import {
-  ChevronRight, Copy, Download, FilePlus, FileText, Folder, FolderInput, FolderPlus, ListChecks, MoreHorizontal, Pencil, Pin, Play, Plug, Trash2, X,
+  ChevronRight, Copy, Download, FilePlus, FileText, Folder, FolderInput, FolderPlus, ListChecks, MoreHorizontal, Network, Pencil, Pin, Play, Plug, Trash2, X,
 } from 'lucide-react';
 import clsx from 'clsx';
-import type { Collection, FolderNode, RequestNode, TreeNode, WebSocketNode } from '@/types';
+import type { Collection, FolderNode, RequestNode, TreeNode, WebSocketNode, GrpcNode } from '@/types';
 import { methodVar } from '@/lib/methodColor';
-import { newFolder, newRequestNode, newWebSocketNode } from '@/lib/factory';
+import { newFolder, newGrpcNode, newRequestNode, newWebSocketNode } from '@/lib/factory';
 import { useWorkspaces } from '@/store/workspaces';
 import { useRunner } from '@/store/runner';
 import { useSession } from '@/store/session';
@@ -31,6 +31,7 @@ export function CollectionTree({ collection }: { collection: Collection }) {
   const moveNode = useWorkspaces((s) => s.moveNode);
   const openRequestNode = useSession((s) => s.openRequestNode);
   const openWebSocketNode = useSession((s) => s.openWebSocketNode);
+  const openGrpcNode = useSession((s) => s.openGrpcNode);
 
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -87,6 +88,8 @@ export function CollectionTree({ collection }: { collection: Collection }) {
     openRequestNode({ nodeId: node.id, collectionId: collection.id, name: node.name, request: node.request });
   const openWebSocket = (node: WebSocketNode) =>
     openWebSocketNode({ nodeId: node.id, collectionId: collection.id, name: node.name, request: node.request });
+  const openGrpc = (node: GrpcNode) =>
+    openGrpcNode({ nodeId: node.id, collectionId: collection.id, name: node.name, request: node.request });
 
   const handleDrop = (targetId: string | null, where: 'before' | 'after' | 'inside') => {
     if (!drag) return;
@@ -133,6 +136,7 @@ export function CollectionTree({ collection }: { collection: Collection }) {
             { label: 'Open', icon: <FileText size={12} />, onSelect: () => useSession.getState().openCollectionTab(collection.id, collection.name) },
             { label: 'New request', icon: <FilePlus size={12} />, onSelect: () => addNode(collection.id, null, newRequestNode()), separatorAbove: true },
             { label: 'New WebSocket', icon: <Plug size={12} />, onSelect: () => addNode(collection.id, null, newWebSocketNode()) },
+            { label: 'New gRPC request', icon: <Network size={12} />, onSelect: () => addNode(collection.id, null, newGrpcNode()) },
             { label: 'New folder', icon: <FolderPlus size={12} />, onSelect: () => addNode(collection.id, null, newFolder()) },
             { label: 'Rename', icon: <Pencil size={12} />, onSelect: () => setRenaming(collection.id), separatorAbove: true },
             { label: 'Duplicate', icon: <Copy size={12} />, onSelect: () => duplicateCollection(collection.id) },
@@ -175,6 +179,8 @@ export function CollectionTree({ collection }: { collection: Collection }) {
             openMenu(e, [
               { label: 'New request', icon: <FilePlus size={12} />, onSelect: () => addNode(collection.id, null, newRequestNode()) },
               { label: 'New WebSocket', icon: <Plug size={12} />, onSelect: () => addNode(collection.id, null, newWebSocketNode()) },
+              { label: 'New gRPC request', icon: <Network size={12} />, onSelect: () => addNode(collection.id, null, newGrpcNode()) },
+            { label: 'New gRPC request', icon: <Network size={12} />, onSelect: () => addNode(collection.id, null, newGrpcNode()) },
               { label: 'New folder', icon: <FolderPlus size={12} />, onSelect: () => addNode(collection.id, null, newFolder()) },
               { label: 'Run collection', icon: <ListChecks size={12} />, onSelect: () => useRunner.getState().openFor(collection.id, null), separatorAbove: true },
             ])
@@ -221,6 +227,7 @@ export function CollectionTree({ collection }: { collection: Collection }) {
               openMenu={openMenu}
               openRequest={openRequest}
               openWebSocket={openWebSocket}
+              openGrpc={openGrpc}
               addNode={addNode}
               deleteNode={deleteNode}
               duplicateNode={duplicateNode}
@@ -272,6 +279,7 @@ function NodeRow({
   openMenu,
   openRequest,
   openWebSocket,
+  openGrpc,
   addNode,
   deleteNode,
   duplicateNode,
@@ -293,6 +301,7 @@ function NodeRow({
   openMenu: (e: React.MouseEvent, items: MenuItem[]) => void;
   openRequest: (node: RequestNode) => void;
   openWebSocket: (node: WebSocketNode) => void;
+  openGrpc: (node: GrpcNode) => void;
   addNode: ReturnType<typeof useWorkspaces.getState>['addNode'];
   deleteNode: ReturnType<typeof useWorkspaces.getState>['deleteNode'];
   duplicateNode: ReturnType<typeof useWorkspaces.getState>['duplicateNode'];
@@ -390,6 +399,7 @@ function NodeRow({
                 { label: 'Open', icon: <FileText size={12} />, onSelect: () => useSession.getState().openFolderTab(collection.id, node.id, node.name) },
                 { label: 'New request', icon: <FilePlus size={12} />, onSelect: () => addNode(collection.id, node.id, newRequestNode()), separatorAbove: true },
                 { label: 'New WebSocket', icon: <Plug size={12} />, onSelect: () => addNode(collection.id, node.id, newWebSocketNode()) },
+                { label: 'New gRPC request', icon: <Network size={12} />, onSelect: () => addNode(collection.id, node.id, newGrpcNode()) },
                 { label: 'New folder', icon: <FolderPlus size={12} />, onSelect: () => addNode(collection.id, node.id, newFolder()) },
                 { label: 'Run folder', icon: <ListChecks size={12} />, onSelect: () => useRunner.getState().openFor(collection.id, node.id), separatorAbove: true },
                 ...commonMenuItems(),
@@ -434,6 +444,7 @@ function NodeRow({
               openMenu={openMenu}
               openRequest={openRequest}
               openWebSocket={openWebSocket}
+              openGrpc={openGrpc}
               addNode={addNode}
               deleteNode={deleteNode}
               duplicateNode={duplicateNode}
@@ -448,6 +459,43 @@ function NodeRow({
               onToggleSelect={onToggleSelect}
             />
           ))}
+      </div>
+    );
+  }
+
+  if (node.type === 'grpc') {
+    const grpc = node;
+    return (
+      <div className="relative">
+        {dropLine}
+        <div
+          draggable
+          onDragStart={() => setDrag({ collectionId: collection.id, nodeId: node.id })}
+          onDragEnd={() => { setDrag(null); setDropTarget(null); }}
+          onDragOver={onDragOverRow}
+          onDrop={onRowDrop}
+          onContextMenu={(e) => openMenu(e, [{ label: 'Open', icon: <Play size={12} />, onSelect: () => openGrpc(grpc) }, ...commonMenuItems()])}
+          onClick={(e) => selectAware(e, () => openGrpc(grpc))}
+          className={clsx(
+            'group flex h-6.5 min-w-0 cursor-pointer items-center gap-1.5 rounded pr-1 hover:bg-surface-2',
+            isOpen && 'bg-surface-2',
+            isSelected && 'bg-accent/15 ring-1 ring-inset ring-accent/40',
+          )}
+          style={{ paddingLeft: 4 + (depth + 1) * 14 }}
+        >
+          <span className="w-9 shrink-0 text-[10px] font-bold tracking-wide text-accent">gRPC</span>
+          {renaming === node.id ? (
+            <RenameInput value={node.name} onCommit={(name) => { updateNode(collection.id, node.id, { name }); setRenaming(null); }} onCancel={() => setRenaming(null)} />
+          ) : (
+            <span className="min-w-0 flex-1 truncate text-[12.5px] text-dim group-hover:text-fg">{grpc.name}</span>
+          )}
+          <button
+            className="flex h-5.5 w-5.5 shrink-0 items-center justify-center rounded text-faint opacity-0 hover:bg-surface-3 group-hover:opacity-100"
+            onClick={(e) => { e.stopPropagation(); openMenu(e, commonMenuItems()); }}
+          >
+            <MoreHorizontal size={11} />
+          </button>
+        </div>
       </div>
     );
   }

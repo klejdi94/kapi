@@ -14,9 +14,9 @@ import { useSession } from '@/store/session';
 import { useActiveWorkspace, useWorkspaces } from '@/store/workspaces';
 import { allRequests, hasCollapsedFolder, walk } from '@/lib/tree';
 import { methodVar } from '@/lib/methodColor';
-import type { RequestNode, WebSocketNode } from '@/types';
+import type { RequestNode, WebSocketNode, GrpcNode } from '@/types';
 
-type PinnedEntry = { node: RequestNode | WebSocketNode; collectionId: string; collectionName: string };
+type PinnedEntry = { node: RequestNode | WebSocketNode | GrpcNode; collectionId: string; collectionName: string };
 
 const PANEL_TITLE = { collections: 'Collections', environments: 'Environments', history: 'History', git: 'Git', mock: 'Mock Servers', ai: 'Ask Claude', discovery: 'Discovery', cookies: 'Cookie Jar' } as const;
 
@@ -57,7 +57,9 @@ export function Sidebar({ onOpenImport, onOpenExport }: { onOpenImport: () => vo
   const openPinned = (entry: PinnedEntry) =>
     entry.node.type === 'websocket'
       ? openWebSocketNode({ nodeId: entry.node.id, collectionId: entry.collectionId, name: entry.node.name, request: entry.node.request })
-      : openRequestNode({ nodeId: entry.node.id, collectionId: entry.collectionId, name: entry.node.name, request: entry.node.request });
+      : entry.node.type === 'grpc'
+        ? useSession.getState().openGrpcNode({ nodeId: entry.node.id, collectionId: entry.collectionId, name: entry.node.name, request: entry.node.request })
+        : openRequestNode({ nodeId: entry.node.id, collectionId: entry.collectionId, name: entry.node.name, request: entry.node.request });
 
   return (
     <div className="flex h-full flex-col bg-surface-2">
@@ -127,9 +129,9 @@ export function Sidebar({ onOpenImport, onOpenExport }: { onOpenImport: () => vo
                       <button onClick={() => openPinned(entry)} className="flex h-full min-w-0 flex-1 items-center gap-2 px-2 text-left">
                         <span
                           className="w-9 shrink-0 text-right text-[9.5px] font-bold"
-                          style={{ color: entry.node.type === 'websocket' ? 'var(--info)' : methodVar(entry.node.request.method) }}
+                          style={{ color: entry.node.type === 'websocket' ? 'var(--info)' : entry.node.type === 'grpc' ? 'var(--accent)' : methodVar(entry.node.request.method) }}
                         >
-                          {entry.node.type === 'websocket' ? 'WS' : entry.node.request.method.slice(0, 4)}
+                          {entry.node.type === 'websocket' ? 'WS' : entry.node.type === 'grpc' ? 'gRPC' : entry.node.request.method.slice(0, 4)}
                         </span>
                         <span className="min-w-0 flex-1 truncate text-[12.5px] text-dim">{entry.node.name}</span>
                       </button>

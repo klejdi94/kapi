@@ -85,7 +85,7 @@ OpenAPI 3.0, ready to hand to anything that reads either.
 
 **Every request you actually send**
 All HTTP methods plus custom verbs. Bearer, Basic, API key, JWT (signed locally), a real OAuth 2.0
-flow (opens your browser, PKCE included), raw custom auth. JSON, XML, HTML, text, GraphQL, form-data
+flow (opens your browser, PKCE included), AWS Signature V4, HTTP Digest, raw custom auth. JSON, XML, HTML, text, GraphQL, form-data
 with real file uploads, urlencoded, binary — even over a client certificate. Mutual TLS, a custom CA,
 an HTTP/SOCKS proxy, `text/event-stream` responses rendered live as they arrive, and WebSocket
 connections with a live frame log.
@@ -175,6 +175,21 @@ frame, mock hit and script log, with full headers and bodies.
 </td></tr>
 <tr><td width="50%" valign="top">
 
+**gRPC, without generated code**
+Point kapi at a server with reflection, or at your `.proto` files, pick a method, and send JSON.
+Unary, server-streaming, client-streaming and bidirectional calls, metadata, deadlines, TLS and mTLS —
+streamed responses appear message by message.
+
+</td><td width="50%" valign="top">
+
+**Load testing built in**
+Run a collection with dozens of virtual users for a duration or a number of iterations, with ramp-up
+and think time. Live throughput, p50/p95/p99 latency and error rate, per request — and the same from
+`npx kapi load` with pass/fail thresholds for CI.
+
+</td></tr>
+<tr><td width="50%" valign="top">
+
 **A response that's a table or a chart, when it is one**
 A JSON array of objects, or a CSV body, gets a real sortable table and a bar/line chart for free —
 pick the columns, export the table back out as CSV. Hidden entirely when a response isn't shaped
@@ -206,7 +221,15 @@ environment export, and an optional CSV data file (one row per iteration, same a
 Exits `0` only when every request's tests passed and none errored — `1` on a test failure, `2` on a
 usage/config problem — so it drops straight into a CI step. `--json` prints one JSON object instead
 of the human-readable summary. `--folder <name>` scopes the run the same way right-clicking a folder
-does in the app.
+does in the app. Cookies carry between requests like in the app, `--globals` loads globals, and
+`--export-environment` / `--export-globals` write the variables back out as the run left them.
+
+Load test the same collection with concurrent virtual users, and fail the build on a regression:
+
+```bash
+npx kapi load my-collection.kapi.json --env staging.json --vus 50 --duration 2m --ramp-up 30s \
+  --threshold "p95<400" --threshold "errors<1"
+```
 
 ---
 

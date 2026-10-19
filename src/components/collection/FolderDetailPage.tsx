@@ -22,7 +22,7 @@ export function FolderDetailPage({ collection, folder }: { collection: Collectio
   const scope = buildScope(workspace, collection);
   const [tab, setTab] = useState<DetailTab>('overview');
 
-  const { requests: requestCount, folders: folderCount, websockets: wsCount } = countByType(folder.items);
+  const { requests: requestCount, folders: folderCount, websockets: wsCount, grpc: grpcCount } = countByType(folder.items);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -54,6 +54,14 @@ export function FolderDetailPage({ collection, folder }: { collection: Collectio
             <span>·</span>
             <span>
               {wsCount} websocket{wsCount === 1 ? '' : 's'}
+            </span>
+          </>
+        )}
+        {grpcCount > 0 && (
+          <>
+            <span>·</span>
+            <span>
+              {grpcCount} gRPC
             </span>
           </>
         )}

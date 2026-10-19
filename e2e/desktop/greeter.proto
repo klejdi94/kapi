@@ -1,0 +1,12 @@
+syntax = "proto3";
+package demo.v1;
+service Greeter {
+  rpc SayHello (HelloRequest) returns (HelloReply);
+  rpc CountTo (CountRequest) returns (stream CountReply);
+  rpc Sum (stream CountRequest) returns (CountReply);
+  rpc Chat (stream HelloRequest) returns (stream HelloReply);
+}
+message HelloRequest { string name = 1; }
+message HelloReply { string message = 1; string auth = 2; }
+message CountRequest { int32 n = 1; }
+message CountReply { int32 n = 1; }

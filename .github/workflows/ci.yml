@@ -61,6 +61,57 @@ jobs:
           path: test-results/
           retention-days: 7
 
+  # The real desktop binary driven through tauri-driver/WebKitWebDriver under
+  # a virtual display: native IPC, the CSP, the script sandbox, the keychain
+  # and gRPC (against a local reflection server), none of which a browser
+  # test can reach.
+  desktop-e2e:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install the webview, WebDriver, a virtual display and a keyring
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
+            webkit2gtk-driver xvfb gnome-keyring dbus-x11
+          cargo install tauri-driver --locked
+          pip install selenium
+
+      - run: npm ci
+      - run: npm ci
+        working-directory: e2e/desktop
+
+      - name: Build the app (debug, assets embedded)
+        run: npx tauri build --debug --no-bundle
+
+      - name: Desktop end-to-end
+        run: xvfb-run -a -s "-screen 0 1440x900x24" dbus-run-session -- e2e/desktop/run.sh
+
+      - name: gRPC against a live server
+        run: |
+          node e2e/desktop/servers.js &
+          sleep 2
+          cd src-tauri && KAPI_GRPC_TEST_ADDR=127.0.0.1:50077 cargo test live_tests
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: desktop-e2e-screenshots
+          path: e2e/desktop/shots*
+          retention-days: 7
+
   rust:
     runs-on: ubuntu-latest
     steps:

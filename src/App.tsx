@@ -20,7 +20,8 @@ import { FolderDetailPage } from '@/components/collection/FolderDetailPage';
 import { WorkspaceOverview } from '@/components/workspace/WorkspaceOverview';
 import { TokenInspectorModal } from '@/components/modals/TokenInspectorModal';
 import { useTokenInspector } from '@/store/tokenInspector';
-import { writeTabRequest, writeTabWs } from '@/lib/tabWrite';
+import { writeTabGrpc, writeTabRequest, writeTabWs } from '@/lib/tabWrite';
+import { GrpcPanel } from '@/components/grpc/GrpcPanel';
 import { upsertWorkspaceVariable } from '@/lib/varWrite';
 import { RunnerPanel } from '@/components/runner/RunnerPanel';
 import { useRunner } from '@/store/runner';
@@ -45,14 +46,14 @@ import { buildScope } from '@/lib/variables';
 import { resolveInheritedForNode } from '@/lib/inherit';
 import { locate } from '@/lib/tree';
 import { sendWithCookies } from '@/lib/sendWithCookies';
-import { uid, newWebSocketRequest } from '@/lib/factory';
+import { uid, newGrpcRequest, newWebSocketRequest } from '@/lib/factory';
 import { toast } from '@/lib/toast';
 import { responseToExample, exampleToResponse } from '@/lib/examples';
 import { applyScriptRequest, chainScripts, responseToScriptInput, scriptRequestOf, type ScriptVars, type ChainOutcome, type TestResult } from '@/lib/scripting';
 import { makeScriptSender } from '@/lib/scripting/sendBridge';
 import { useTestResults } from '@/store/testResults';
 import { withTrailingBlank } from '@/lib/factory';
-import type { KapiResponse, RequestDef, SavedExample, SentRequest, WebSocketRequestDef } from '@/types';
+import type { GrpcRequestDef, KapiResponse, RequestDef, SavedExample, SentRequest, WebSocketRequestDef } from '@/types';
 import { FileDown, X } from 'lucide-react';
 
 const EMPTY_TESTS: TestResult[] = [];
@@ -333,11 +334,18 @@ export default function App() {
     writeTabWs(activeTab.id, ws);
   };
 
+  const onChangeGrpc = (grpc: GrpcRequestDef) => {
+    if (!activeTab) return;
+    writeTabGrpc(activeTab.id, grpc);
+  };
+
   const onSave = () => {
     if (!activeTab) return;
     if (activeTab.nodeId && activeTab.collectionId) {
       if (activeTab.kind === 'ws' && activeTab.ws) {
         writeTabWs(activeTab.id, activeTab.ws);
+      } else if (activeTab.kind === 'grpc' && activeTab.grpc) {
+        writeTabGrpc(activeTab.id, activeTab.grpc);
       } else {
         writeTabRequest(activeTab.id, activeTab.request);
       }
@@ -409,6 +417,9 @@ export default function App() {
         break;
       case 'new-ws-tab':
         openTab({ kind: 'ws', name: 'New WebSocket', ws: newWebSocketRequest() });
+        break;
+      case 'new-grpc-tab':
+        openTab({ kind: 'grpc', name: 'New gRPC request', grpc: newGrpcRequest() });
         break;
       case 'close-tab':
         if (activeTabId) closeTab(activeTabId);
@@ -571,6 +582,7 @@ export default function App() {
     { id: 'import', label: 'Import…', icon: <FileDown size={13} />, run: () => setImportOpen(true) },
     { id: 'export-workspace', label: 'Export workspace…', icon: <FileDown size={13} />, run: () => setExportCollectionId('workspace') },
     { id: 'new-ws-tab', label: 'New WebSocket tab', icon: <FileDown size={13} />, run: () => openTab({ kind: 'ws', name: 'New WebSocket', ws: newWebSocketRequest() }) },
+    { id: 'new-grpc-tab', label: 'New gRPC tab', icon: <FileDown size={13} />, run: () => runAction('new-grpc-tab') },
     { id: 'close-tab', label: 'Close tab', icon: <X size={13} />, run: () => runAction('close-tab') },
     { id: 'close-other-tabs', label: 'Close other tabs', icon: <X size={13} />, run: () => runAction('close-other-tabs') },
     { id: 'close-all-tabs', label: 'Close all tabs', icon: <X size={13} />, run: () => runAction('close-all-tabs') },
@@ -620,6 +632,9 @@ export default function App() {
           )}
           {activeTab && activeTab.kind === 'ws' && activeTab.ws && (
             <WsPanel tabId={activeTab.id} request={activeTab.ws} onChange={onChangeWs} collection={collection} />
+          )}
+          {activeTab && activeTab.kind === 'grpc' && activeTab.grpc && (
+            <GrpcPanel tabId={activeTab.id} request={activeTab.grpc} onChange={onChangeGrpc} collection={collection} />
           )}
           {activeTab && activeTab.kind === 'collection' && collection && (
             <CollectionDetailPage collection={collection} onExport={() => setExportCollectionId(collection.id)} />

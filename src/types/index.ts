@@ -166,6 +166,50 @@ export interface WebSocketNode {
   pinned?: boolean;
 }
 
+export interface GrpcMethodInfo {
+  name: string;
+  clientStreaming: boolean;
+  serverStreaming: boolean;
+  inputType: string;
+  outputType: string;
+  /** JSON skeleton of the input message, generated from the schema. */
+  inputTemplate: string;
+}
+
+export interface GrpcServiceInfo {
+  /** Fully qualified, e.g. `helloworld.Greeter`. */
+  name: string;
+  methods: GrpcMethodInfo[];
+}
+
+export interface GrpcRequestDef {
+  /** `host:port`, or with `http://` (plaintext) / `https://` (TLS). */
+  url: string;
+  schemaSource: 'reflection' | 'proto';
+  /** The .proto files the schema was compiled from, when `schemaSource` is `proto`. */
+  protoPaths: string[];
+  /** Base64 FileDescriptorSet — the compiled schema, kept so a saved request works without the files. */
+  descriptorSet: string;
+  services: GrpcServiceInfo[];
+  service: string;
+  method: string;
+  /** Protobuf JSON. For client-streaming and bidi methods, a JSON array of messages sent in order. */
+  message: string;
+  metadata: KV[];
+  timeoutMs: number;
+  caCertPem?: string;
+  clientCertPem?: string;
+  clientKeyPem?: string;
+}
+
+export interface GrpcNode {
+  id: string;
+  type: 'grpc';
+  name: string;
+  request: GrpcRequestDef;
+  pinned?: boolean;
+}
+
 export interface FolderNode {
   id: string;
   type: 'folder';
@@ -176,7 +220,7 @@ export interface FolderNode {
   items: TreeNode[];
 }
 
-export type TreeNode = RequestNode | WebSocketNode | FolderNode;
+export type TreeNode = RequestNode | WebSocketNode | GrpcNode | FolderNode;
 
 export interface Collection {
   id: string;
@@ -325,10 +369,12 @@ export interface Tab {
   nodeId: string | null;
   collectionId: string | null;
   name: string;
-  kind: 'http' | 'ws' | 'collection' | 'folder';
+  kind: 'http' | 'ws' | 'grpc' | 'collection' | 'folder';
   request: RequestDef;
   /** Only set when `kind === 'ws'`. */
   ws: WebSocketRequestDef | null;
+  /** Only set when `kind === 'grpc'`. */
+  grpc?: GrpcRequestDef | null;
   dirty: boolean;
   /** Pinned tabs sort first and survive "Close other tabs" / "Close all tabs". */
   pinned?: boolean;

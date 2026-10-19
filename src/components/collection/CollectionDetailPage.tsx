@@ -42,7 +42,7 @@ export function CollectionDetailPage({ collection, onExport }: { collection: Col
   const [scriptPhase, setScriptPhase] = useState<ScriptPhase>('pre');
   const [copied, setCopied] = useState(false);
 
-  const { requests: requestCount, folders: folderCount, websockets: wsCount } = countByType(collection.items);
+  const { requests: requestCount, folders: folderCount, websockets: wsCount, grpc: grpcCount } = countByType(collection.items);
 
   const rendered = renderCollectionDocs(collection);
   const copyDocs = () => {
@@ -87,6 +87,14 @@ export function CollectionDetailPage({ collection, onExport }: { collection: Col
             <span>·</span>
             <span>
               {wsCount} websocket{wsCount === 1 ? '' : 's'}
+            </span>
+          </>
+        )}
+        {grpcCount > 0 && (
+          <>
+            <span>·</span>
+            <span>
+              {grpcCount} gRPC
             </span>
           </>
         )}

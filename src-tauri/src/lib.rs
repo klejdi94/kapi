@@ -4,12 +4,14 @@ use std::path::Path;
 mod ai_cli;
 mod appmenu;
 mod discovery;
+mod grpc;
 mod mock;
 mod mtls;
 mod oauth;
 mod secrets;
 use ai_cli::{kapi_ai_list_available, kapi_ai_prompt};
 use discovery::{kapi_discovery_report, kapi_open_discovery};
+use grpc::{kapi_grpc_call, kapi_grpc_cancel, kapi_grpc_load_protos, kapi_grpc_reflect, GrpcCalls};
 use mock::{kapi_mock_is_running, kapi_mock_start, kapi_mock_stop, MockState};
 use mtls::kapi_send_mtls;
 use oauth::{kapi_oauth_cancel, kapi_oauth_listen, OAuthListenState};
@@ -91,6 +93,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .manage(MockState::default())
         .manage(OAuthListenState::default())
+        .manage(GrpcCalls::default())
         .invoke_handler(tauri::generate_handler![
             kapi_write_text_file,
             kapi_write_binary_file,
@@ -106,7 +109,11 @@ pub fn run() {
             kapi_send_mtls,
             kapi_ai_list_available,
             kapi_ai_prompt,
-            kapi_secrets_key
+            kapi_secrets_key,
+            kapi_grpc_load_protos,
+            kapi_grpc_reflect,
+            kapi_grpc_call,
+            kapi_grpc_cancel
         ])
         .on_menu_event(|app, event| {
             appmenu::handle_event(app, event.id().as_ref());

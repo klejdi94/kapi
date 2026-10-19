@@ -22,6 +22,10 @@ fn main() {
             "kapi_ai_list_available",
             "kapi_ai_prompt",
             "kapi_secrets_key",
+            "kapi_grpc_load_protos",
+            "kapi_grpc_reflect",
+            "kapi_grpc_call",
+            "kapi_grpc_cancel",
         ])),
     )
     .expect("failed to run tauri-build");

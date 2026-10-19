@@ -22,7 +22,19 @@ npm run build:npm && node npm/dist/kapi.js --version
 (cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
 ```
 
-CI runs all of these on every push and pull request.
+CI runs all of these on every push and pull request, plus a **desktop end-to-end suite** that drives
+the real app binary through WebDriver. To run that locally on Linux (needs `webkit2gtk-driver`,
+`xvfb`, `gnome-keyring`, `cargo install tauri-driver` and `pip install selenium`):
+
+```bash
+(cd e2e/desktop && npm install)
+npx tauri build --debug --no-bundle
+xvfb-run -a dbus-run-session -- e2e/desktop/run.sh
+```
+
+`e2e/desktop/servers.js` also gives you a local HTTP echo server (`:18090`) and a gRPC server with
+reflection (`:50077`) to try things against while developing; with it running,
+`KAPI_GRPC_TEST_ADDR=127.0.0.1:50077 cargo test live_tests` exercises every gRPC call kind.
 
 ## Where things live
 
@@ -30,8 +42,8 @@ CI runs all of these on every push and pull request.
 | --- | --- |
 | `src/` | The app's frontend. `src/lib` is framework-free logic (and where most tests are). |
 | `src/lib/scripting/` | Pre-request/test scripts: the `pm` runtime and the sandboxes it runs in. |
-| `src-tauri/` | The Rust shell: native commands, capabilities (what the webview may call), menus. |
-| `cli/`, `src/cli/` | The headless runner behind `npx kapi run`. |
+| `src-tauri/` | The Rust shell: native commands, capabilities (what the webview may call), menus, gRPC (`grpc.rs`). |
+| `cli/`, `src/cli/` | The headless runner behind `npx kapi run` and `npx kapi load`. |
 | `mcp/` | The MCP server behind `npx kapi mcp`. |
 | `npm/` | The published `kapi` npm package (built by `scripts/build-npm.mjs`). |
 

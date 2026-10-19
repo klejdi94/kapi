@@ -1,0 +1,45 @@
+// Local servers the desktop E2E suite talks to: an HTTP echo server and a gRPC
+// Greeter with server reflection. Nothing here reaches the network.
+const http = require('node:http');
+const grpc = require('@grpc/grpc-js');
+const loader = require('@grpc/proto-loader');
+const { ReflectionService } = require('@grpc/reflection');
+
+http
+  .createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => (body += c));
+    req.on('end', () => {
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ method: req.method, url: req.url, headers: req.headers, body }));
+    });
+  })
+  .listen(18090, '127.0.0.1');
+
+const def = loader.loadSync(__dirname + '/greeter.proto');
+const pkg = grpc.loadPackageDefinition(def);
+const server = new grpc.Server();
+server.addService(pkg.demo.v1.Greeter.service, {
+  SayHello: (call, cb) => {
+    if (call.request.name === 'fail') return cb({ code: grpc.status.PERMISSION_DENIED, details: 'no fail allowed' });
+    const md = new grpc.Metadata();
+    md.set('x-served-by', 'node');
+    call.sendMetadata(md);
+    cb(null, { message: `Hello ${call.request.name}`, auth: call.metadata.get('authorization')[0] || '' });
+  },
+  CountTo: (call) => {
+    for (let i = 1; i <= call.request.n; i++) call.write({ n: i });
+    call.end();
+  },
+  Sum: (call, cb) => {
+    let s = 0;
+    call.on('data', (m) => (s += m.n));
+    call.on('end', () => cb(null, { n: s }));
+  },
+  Chat: (call) => {
+    call.on('data', (m) => call.write({ message: `echo ${m.name}` }));
+    call.on('end', () => call.end());
+  },
+});
+new ReflectionService(def).addToServer(server);
+server.bindAsync('127.0.0.1:50077', grpc.ServerCredentials.createInsecure(), () => console.log('servers ready'));
