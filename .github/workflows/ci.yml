@@ -50,6 +50,8 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - run: npm ci
+        working-directory: e2e/desktop
       - run: npx playwright install --with-deps chromium
       - run: npm run build
       - run: npm run test:e2e
@@ -94,18 +96,10 @@ jobs:
         working-directory: e2e/desktop
 
       - name: Build the app (debug, assets embedded)
-        run: npx tauri build --debug --no-bundle
+        run: .github/scripts/run-annotated.sh "desktop build" npx tauri build --debug --no-bundle
 
       - name: Desktop end-to-end
-        run: |
-          set +e
-          xvfb-run -a -s "-screen 0 1440x900x24" dbus-run-session -- e2e/desktop/run.sh 2>&1 | tee e2e-desktop.log
-          status=${PIPESTATUS[0]}
-          if [ "$status" -ne 0 ]; then
-            # The tail of the log as an annotation: readable on the run page and through the API.
-            echo "::error title=desktop e2e log::$(tail -c 4000 e2e-desktop.log | sed 's/%/%25/g' | tr '\n' '|')"
-          fi
-          exit $status
+        run: .github/scripts/run-annotated.sh "desktop e2e" xvfb-run -a -s "-screen 0 1440x900x24" dbus-run-session -- e2e/desktop/run.sh
 
       - name: gRPC against a live server
         run: |

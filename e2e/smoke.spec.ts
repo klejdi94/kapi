@@ -68,3 +68,15 @@ test('creates a monitor and runs it now', async ({ page }) => {
   await page.getByRole('tab', { name: /^History/ }).click();
   await expect(page.getByText('monitor', { exact: true }).first()).toBeVisible();
 });
+
+test('compares a request across environments', async ({ page }) => {
+  await page.getByText('Untitled request', { exact: true }).click();
+  const url = page.getByPlaceholder(/paste a cURL command/);
+  await url.fill('http://127.0.0.1:18090/echo?token={{token}}');
+  await page.getByRole('button', { name: 'Compare across environments' }).click();
+  await page.getByRole('combobox', { name: 'Environment B' }).selectOption({ label: 'No environment' });
+  await page.getByRole('button', { name: 'Send both' }).click();
+  // With "Local", {{token}} resolves; without an environment it doesn't — so the echoed URL differs.
+  await expect(page.getByRole('cell', { name: '$.url' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('"/echo?token=a-token-httpbin-will-echo-back"')).toBeVisible();
+});

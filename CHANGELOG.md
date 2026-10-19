@@ -17,6 +17,9 @@ All notable changes to kapi. Versions follow [semver](https://semver.org).
   pulling keeps your local values.
 
 ### Added
+- **Compare across environments**: send the open request through two environments and see what
+  differs — status, headers (volatile ones hidden) and a path-by-path JSON diff with ignorable paths,
+  or a line diff.
 - **Monitors**: run a collection or folder on a schedule while kapi is open (every 5 minutes to daily),
   with a system notification on failure or on a status change, results in History, and a ready-made
   GitHub Actions workflow for when kapi is closed.

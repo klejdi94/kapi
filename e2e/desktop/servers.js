@@ -7,6 +7,11 @@ const { ReflectionService } = require('@grpc/reflection');
 
 http
   .createServer((req, res) => {
+    // CORS, so the browser-based Playwright suite can call it too.
+    res.setHeader('access-control-allow-origin', '*');
+    res.setHeader('access-control-allow-headers', '*');
+    res.setHeader('access-control-allow-methods', '*');
+    if (req.method === 'OPTIONS') return res.end();
     let body = '';
     req.on('data', (c) => (body += c));
     req.on('end', () => {

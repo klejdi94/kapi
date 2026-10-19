@@ -12,6 +12,8 @@ import { ResponseViewer } from '@/components/response/ResponseViewer';
 import { ToastHost } from '@/components/ui/ToastHost';
 import { ImportModal } from '@/components/modals/ImportModal';
 import { SaveAsModal } from '@/components/modals/SaveAsModal';
+import { EnvCompareModal } from '@/components/modals/EnvCompareModal';
+import { useEnvCompare } from '@/store/envCompare';
 import { ExportModal } from '@/components/modals/ExportModal';
 import { CodeSnippetModal } from '@/components/modals/CodeSnippetModal';
 import { PromptModal } from '@/components/modals/PromptModal';
@@ -594,6 +596,7 @@ export default function App() {
     { id: 'close-other-tabs', label: 'Close other tabs', icon: <X size={13} />, run: () => runAction('close-other-tabs') },
     { id: 'close-all-tabs', label: 'Close all tabs', icon: <X size={13} />, run: () => runAction('close-all-tabs') },
     ...(activeTab?.kind === 'http' ? [{ id: 'generate-code', label: 'Generate code for this request…', icon: <FileDown size={13} />, run: () => setCodeOpen(true) }] : []),
+    ...(activeTab?.kind === 'http' ? [{ id: 'compare-envs', label: 'Compare this request across environments…', icon: <FileDown size={13} />, run: () => useEnvCompare.getState().setOpen(true) }] : []),
     ...(collection
       ? [{ id: 'run-collection', label: `Run collection "${collection.name}"…`, icon: <FileDown size={13} />, run: () => useRunner.getState().openFor(collection.id, null) }]
       : []),
@@ -720,6 +723,11 @@ export default function App() {
         onClose={() => setExtractVariable(null)}
       />
       <SaveAsModal open={saveAsTabId !== null} onClose={() => setSaveAsTabId(null)} tabId={saveAsTabId} />
+      <EnvCompareModal
+        key={activeTab?.id}
+        request={activeTab?.kind === 'http' ? resolveInheritedForNode(activeTab.request, collection, activeTab.nodeId) : null}
+        collection={collection}
+      />
       <ExportModal
         open={exportCollectionId !== null}
         onClose={() => setExportCollectionId(null)}

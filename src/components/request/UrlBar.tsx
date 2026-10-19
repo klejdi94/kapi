@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import { ChevronDown, Code2, History, Loader2, Send, Star, TriangleAlert, X } from 'lucide-react';
+import { ChevronDown, Code2, GitCompareArrows, History, Loader2, Send, Star, TriangleAlert, X } from 'lucide-react';
+import { useEnvCompare } from '@/store/envCompare';
 import { MethodSelect } from './MethodSelect';
 import { IconButton } from '@/components/ui/primitives';
 import { useSession } from '@/store/session';
@@ -113,6 +114,10 @@ export function UrlBar({
           Send
         </button>
       )}
+
+      <IconButton label="Compare across environments" onClick={() => useEnvCompare.getState().setOpen(true)} className="h-9 w-9 shrink-0 rounded-md border border-line">
+        <GitCompareArrows size={15} />
+      </IconButton>
 
       <IconButton label="Generate code" onClick={onGenerateCode} className="h-9 w-9 shrink-0 rounded-md border border-line">
         <Code2 size={15} />
