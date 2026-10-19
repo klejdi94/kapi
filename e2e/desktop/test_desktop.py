@@ -88,15 +88,17 @@ try:
         0,
         "pm.test('header arrived', () => pm.expect(pm.response.json().headers['x-from-script']).to.equal('yes'));\n"
         "pm.test('no app access', () => pm.expect(typeof __TAURI_INTERNALS__).to.equal('undefined'));\n"
-        "pm.test('status', () => pm.response.to.have.status(200));",
+        "pm.test('status', () => pm.response.to.have.status(200));\n"
+        "const _ = require('lodash'); const CryptoJS = require('crypto-js');\n"
+        "pm.test('libraries', () => { pm.expect(_.sum([1, 2])).to.equal(3); pm.expect(CryptoJS.SHA256('kapi').toString()).to.have.lengthOf(64); });",
     )
     button('Send').click()
     wait.until(EC.presence_of_element_located((By.XPATH, "//*[normalize-space(.)='200 OK']")))
     # The response pane's Tests tab is the last one with that name (the first is the script editor's).
     clickable("(//*[@role='tab' and starts-with(normalize-space(.), 'Tests')])[last()]").click()
-    wait.until(EC.presence_of_element_located((By.XPATH, "//*[normalize-space(.)='3/3']")))
+    wait.until(EC.presence_of_element_located((By.XPATH, "//*[normalize-space(.)='4/4']")))
     d.save_screenshot(f'{SHOTS}/http-scripts.png')
-    check('pre-request script edits the request and tests pass in the sandbox', True)
+    check('pre-request script edits the request; tests and require()d libraries work in the sandbox', True)
 
     # --- secrets stay out of the files on disk
     tab('Auth').click()
