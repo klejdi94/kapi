@@ -4,8 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 /// The AI copilot panel can talk to any CLI the user already has installed
 /// and authenticated — kapi never asks for or stores an API key of its own,
-/// it only shells out to a binary the user set up themselves (same principle
-/// as `claude_cli.rs`, generalized to more than one CLI).
+/// it only shells out to a binary the user set up themselves.
 #[derive(Clone, Copy)]
 enum Cli {
     Claude,
@@ -51,9 +50,8 @@ impl Cli {
 
     /// Paths under $HOME/%USERPROFILE% worth checking before falling back to
     /// a bare PATH lookup — a packaged app launched from Finder/Dock/Explorer
-    /// does not inherit the PATH customizations a login shell would (see
-    /// `claude_cli.rs::find_claude_binary`, which this mirrors for the other
-    /// two CLIs).
+    /// does not inherit the PATH customizations a login shell would, so a
+    /// bare PATH lookup alone would miss these.
     fn home_candidates(self) -> &'static [&'static str] {
         match (self, cfg!(windows)) {
             (Cli::Claude, true) => &["AppData/Roaming/npm/claude.cmd", ".local/bin/claude.exe", ".claude/local/claude.exe"],
@@ -99,16 +97,45 @@ fn find_binary(cli: Cli) -> PathBuf {
     PathBuf::from(cli.bare_name())
 }
 
-/// Windows cannot spawn a `.cmd` shim directly — it is a batch script, so it
-/// has to go through the command interpreter.
+/// Spawns the CLI directly — including the `.cmd` npm shims on Windows. Rust's
+/// standard library (≥ 1.77.2, this crate's minimum) recognises a `.cmd`/`.bat`
+/// program and applies cmd.exe-aware escaping to its arguments, refusing any it
+/// can't escape safely. Wrapping it in `cmd /C` by hand used to bypass exactly
+/// that escaping (the "BatBadBut" class of bug). On top of that, nothing that
+/// comes from a request or response is passed as an argument at all: the
+/// prompt always travels over stdin (see `run_prompt`), so every argument
+/// below is a fixed string or a path kapi chose.
 fn base_command(binary: &Path) -> Command {
+    #[allow(unused_mut)]
+    let mut command = Command::new(binary);
     #[cfg(windows)]
-    if binary.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("cmd")) {
-        let mut command = Command::new("cmd");
-        command.arg("/C").arg(binary);
-        return command;
+    {
+        use std::os::windows::process::CommandExt;
+        // CREATE_NO_WINDOW: a GUI app shouldn't flash a console for a helper process.
+        command.creation_flags(0x0800_0000);
     }
-    Command::new(binary)
+    command
+}
+
+/// Runs `command` with `input` written to its stdin, collecting stdout/stderr.
+/// The write happens on its own thread so a CLI that starts printing before it
+/// has read all of its input can't deadlock against a full pipe.
+fn run_with_stdin(mut command: Command, input: String, binary: &Path, label: &str) -> Result<std::process::Output, String> {
+    let mut child = command
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Could not run the {label} CLI ({}): {}", binary.display(), e))?;
+    let mut stdin = child.stdin.take().ok_or_else(|| format!("Could not open stdin for the {label} CLI"))?;
+    let writer = std::thread::spawn(move || {
+        use std::io::Write;
+        // A CLI that exits early closes the pipe; that error is reported via its exit status instead.
+        let _ = stdin.write_all(input.as_bytes());
+    });
+    let output = child.wait_with_output().map_err(|e| format!("The {label} CLI failed: {e}"))?;
+    let _ = writer.join();
+    Ok(output)
 }
 
 fn unique_temp_path(prefix: &str) -> PathBuf {
@@ -124,28 +151,26 @@ fn unique_temp_path(prefix: &str) -> PathBuf {
 /// narrower guarantee than Claude's — worth knowing, not worth hiding.
 fn run_prompt(cli: Cli, prompt: &str, system_prompt: &str) -> Result<String, String> {
     let binary = find_binary(cli);
+    // The system prompt is a fixed string from kapi itself, but it still goes
+    // over stdin with everything else rather than as an argument — one rule
+    // ("no prompt text in argv") is easier to keep than a list of exceptions.
+    let combined = format!("{system_prompt}\n\n---\n\n{prompt}");
 
     match cli {
         Cli::Claude => {
-            let output = base_command(&binary)
-                .arg("-p")
-                .arg(prompt)
-                .arg("--tools")
-                .arg("")
-                .arg("--append-system-prompt")
-                .arg(system_prompt)
-                .stdin(Stdio::null())
-                .output()
-                .map_err(|e| format!("Could not run the claude CLI ({}): {}", binary.display(), e))?;
+            // `claude -p` with no prompt argument reads the prompt from stdin.
+            let mut command = base_command(&binary);
+            command.arg("-p").arg("--tools").arg("").current_dir(std::env::temp_dir());
+            let output = run_with_stdin(command, combined, &binary, "claude")?;
             finish(output, &binary)
         }
 
         Cli::Codex => {
-            let combined = format!("{system_prompt}\n\n---\n\n{prompt}");
             let scratch_dir = std::env::temp_dir();
             let output_path = unique_temp_path("kapi-codex-out");
-
-            let output = base_command(&binary)
+            // A prompt of `-` tells `codex exec` to read it from stdin.
+            let mut command = base_command(&binary);
+            command
                 .arg("exec")
                 .arg("-s")
                 .arg("read-only")
@@ -155,12 +180,11 @@ fn run_prompt(cli: Cli, prompt: &str, system_prompt: &str) -> Result<String, Str
                 .arg(&scratch_dir)
                 .arg("-o")
                 .arg(&output_path)
-                .arg(&combined)
-                .stdin(Stdio::null())
-                .output()
-                .map_err(|e| format!("Could not run the codex CLI ({}): {}", binary.display(), e))?;
+                .arg("-");
+            let output = run_with_stdin(command, combined, &binary, "codex")?;
 
             if !output.status.success() {
+                let _ = std::fs::remove_file(&output_path);
                 return finish(output, &binary);
             }
             let text = std::fs::read_to_string(&output_path)
@@ -170,19 +194,19 @@ fn run_prompt(cli: Cli, prompt: &str, system_prompt: &str) -> Result<String, Str
         }
 
         Cli::Gemini => {
-            let combined = format!("{system_prompt}\n\n---\n\n{prompt}");
-            let output = base_command(&binary)
+            // gemini appends piped stdin to the `-p` prompt, so `-p` carries only
+            // a fixed pointer to it.
+            let mut command = base_command(&binary);
+            command
                 .arg("-p")
-                .arg(&combined)
+                .arg("Follow the instructions provided on standard input.")
                 .arg("--approval-mode")
                 .arg("plan")
                 .arg("--skip-trust")
                 .arg("-o")
                 .arg("text")
-                .current_dir(std::env::temp_dir())
-                .stdin(Stdio::null())
-                .output()
-                .map_err(|e| format!("Could not run the gemini CLI ({}): {}", binary.display(), e))?;
+                .current_dir(std::env::temp_dir());
+            let output = run_with_stdin(command, combined, &binary, "gemini")?;
             finish(output, &binary)
         }
     }

@@ -32,8 +32,6 @@
     "allow-kapi-mock-start",
     "allow-kapi-mock-stop",
     "allow-kapi-mock-is-running",
-    "allow-kapi-claude-prompt",
-    "allow-kapi-claude-available",
     "allow-kapi-open-discovery",
     "allow-kapi-oauth-listen",
     "allow-kapi-oauth-cancel",

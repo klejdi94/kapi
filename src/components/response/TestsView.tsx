@@ -5,12 +5,12 @@ import type { TestResult } from '@/lib/scripting';
 import { Button, EmptyState } from '@/components/ui/primitives';
 import { Thinking } from '@/components/ui/Thinking';
 import { generateTestScript } from '@/lib/aiTests';
-import { isClaudeCliInstalled } from '@/lib/claudeCli';
+import { AI_CLI_LABELS, listAvailableAiClis, type AiCliName } from '@/lib/aiCli';
 import { toast } from '@/lib/toast';
 
 /**
  * Results of the `pm.test(...)` assertions that ran against this response, plus
- * a one-click way to have Claude write those assertions from the response body.
+ * a one-click way to have a local AI CLI write those assertions from the response body.
  */
 export function TestsView({
   results,
@@ -23,18 +23,19 @@ export function TestsView({
   hasScript: boolean;
   onGenerated: (script: string) => void;
 }) {
-  const [generating, setGenerating] = useState(false);
+  const [generating, setGenerating] = useState<AiCliName | null>(null);
 
   const generate = async () => {
-    setGenerating(true);
+    const [cli] = await listAvailableAiClis();
+    if (!cli) {
+      toast.error('No AI CLI found', 'Install and sign in to Claude Code, Codex or Gemini CLI, then try again.');
+      return;
+    }
+    setGenerating(cli);
     try {
-      if (!(await isClaudeCliInstalled())) {
-        toast.error('Claude CLI not found', 'Install it from claude.com/product/claude-code, then try again.');
-        return;
-      }
-      const script = await generateTestScript(response);
+      const script = await generateTestScript(response, cli);
       if (!script) {
-        toast.error("Claude didn't return a test script", 'Try again, or write the assertions by hand.');
+        toast.error(`${AI_CLI_LABELS[cli]} didn't return a test script`, 'Try again, or write the assertions by hand.');
         return;
       }
       onGenerated(script);
@@ -42,13 +43,13 @@ export function TestsView({
     } catch (err) {
       toast.error('Could not generate tests', (err as Error).message);
     } finally {
-      setGenerating(false);
+      setGenerating(null);
     }
   };
 
   const generateButton = (
-    <Button variant="primary" onClick={generate} disabled={generating}>
-      {generating ? <Thinking label="Asking Claude…" /> : <><Sparkles size={13} /> Generate tests with AI</>}
+    <Button variant="primary" onClick={generate} disabled={generating !== null}>
+      {generating ? <Thinking label={`Asking ${AI_CLI_LABELS[generating]}…`} /> : <><Sparkles size={13} /> Generate tests with AI</>}
     </Button>
   );
 
@@ -61,7 +62,7 @@ export function TestsView({
           detail={
             hasScript
               ? 'The Tests script ran but called no pm.test(...) — check the Console for its output or errors.'
-              : 'Write pm.test(...) assertions in the request’s Scripts tab, or let Claude write them from this response.'
+              : 'Write pm.test(...) assertions in the request’s Scripts tab, or let your AI CLI write them from this response.'
           }
         />
         <div className="mt-3">{generateButton}</div>

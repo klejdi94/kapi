@@ -3,13 +3,11 @@ use std::path::Path;
 
 mod ai_cli;
 mod appmenu;
-mod claude_cli;
 mod discovery;
 mod mock;
 mod mtls;
 mod oauth;
 use ai_cli::{kapi_ai_list_available, kapi_ai_prompt};
-use claude_cli::{kapi_claude_available, kapi_claude_prompt};
 use discovery::{kapi_discovery_report, kapi_open_discovery};
 use mock::{kapi_mock_is_running, kapi_mock_start, kapi_mock_stop, MockState};
 use mtls::kapi_send_mtls;
@@ -68,8 +66,6 @@ pub fn run() {
       kapi_mock_start,
       kapi_mock_stop,
       kapi_mock_is_running,
-      kapi_claude_prompt,
-      kapi_claude_available,
       kapi_open_discovery,
       kapi_discovery_report,
       kapi_oauth_listen,

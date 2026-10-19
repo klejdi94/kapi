@@ -14,8 +14,6 @@ fn main() {
             "kapi_mock_start",
             "kapi_mock_stop",
             "kapi_mock_is_running",
-            "kapi_claude_prompt",
-            "kapi_claude_available",
             "kapi_open_discovery",
             "kapi_discovery_report",
             "kapi_oauth_listen",

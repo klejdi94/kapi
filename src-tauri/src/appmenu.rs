@@ -7,6 +7,7 @@ use tauri::{
 /// the same handlers already wired to keyboard shortcuts run — the menu is a
 /// second way to reach them, not a second implementation of them.
 pub fn build<R: Runtime>(app: &App<R>) -> tauri::Result<Menu<R>> {
+    #[allow(unused_mut)] // only reassigned on macOS
     let mut app_menu = SubmenuBuilder::new(app, "kapi").item(&PredefinedMenuItem::about(
         app,
         Some("About kapi"),
