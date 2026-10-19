@@ -309,6 +309,25 @@ export interface Workspace {
   mockServer: MockServerConfig;
   /** Cookies picked up from responses, sent back automatically to matching hosts — like a browser's jar. */
   cookies: StoredCookie[];
+  /** Collections (or folders) run on a schedule while kapi is open. */
+  monitors?: Monitor[];
+}
+
+export interface Monitor {
+  id: string;
+  name: string;
+  collectionId: string;
+  /** A folder to run instead of the whole collection. */
+  scopeNodeId: string | null;
+  /** Which environment to run with; null for none. */
+  environmentId: string | null;
+  intervalMinutes: number;
+  enabled: boolean;
+  /** When to raise a system notification. */
+  notify: 'failures' | 'changes' | 'never';
+  lastRunAt?: number;
+  lastStatus?: 'passed' | 'failed' | 'error';
+  lastSummary?: string;
 }
 
 /* ---------------------------------------------------------------- responses */
@@ -424,6 +443,8 @@ export interface RunHistoryResult {
 /** One full "Run collection" execution, saved so past runs of the same collection can be compared over time. */
 export interface RunHistoryEntry {
   id: string;
+  /** Set when a monitor started the run rather than a person. */
+  monitorId?: string;
   collectionId: string;
   collectionName: string;
   /** The folder name when the run was scoped to one, else null for the whole collection. */

@@ -54,3 +54,17 @@ test('runs a short load test from the Runner', async ({ page }) => {
   await expect(page.getByText('Requests', { exact: true })).toBeVisible();
   await expect(page.getByText('Req/s', { exact: true })).toBeVisible();
 });
+
+test('creates a monitor and runs it now', async ({ page }) => {
+  await page.getByText('Getting started', { exact: true }).first().click();
+  await page.getByRole('tab', { name: /^Monitors/ }).click();
+  await page.getByRole('button', { name: 'New monitor' }).click();
+  await expect(page.getByLabel('Monitor name')).toHaveValue('Getting started health');
+  await page.getByRole('button', { name: 'Run now' }).click();
+  // Outside the desktop shell the requests may not get through; either way the run is recorded.
+  await expect(page.getByText(/last run \d+s ago/)).toBeVisible({ timeout: 20_000 });
+  await page.getByRole('button', { name: 'Run in CI…' }).click();
+  await expect(page.getByText(/npx -y kapi run getting-started\.kapi\.json/)).toBeVisible();
+  await page.getByRole('tab', { name: /^History/ }).click();
+  await expect(page.getByText('monitor', { exact: true }).first()).toBeVisible();
+});

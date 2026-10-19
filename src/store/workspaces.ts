@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { Collection, Environment, KV, MockServerConfig, RequestDef, StoredCookie, TreeNode, WebSocketRequestDef, Workspace, GrpcRequestDef } from '@/types';
+import type { Collection, Environment, KV, MockServerConfig, RequestDef, StoredCookie, TreeNode, WebSocketRequestDef, Workspace, GrpcRequestDef, Monitor } from '@/types';
 import { newCollection, newEnvironment, newWorkspace, seedWorkspace, uid, kv } from '@/lib/factory';
 import { deepClone, insertNode, locate, mapNode, reidentify, removeNode, setAllExpanded } from '@/lib/tree';
 import { vaultedStorage } from '@/lib/vaultedStorage';
@@ -53,6 +53,11 @@ interface WorkspaceState {
 
   /* git */
   setGitRepoPath: (path: string | null) => void;
+
+  /* monitors */
+  addMonitor: (monitor: Monitor) => void;
+  updateMonitor: (id: string, patch: Partial<Monitor>) => void;
+  deleteMonitor: (id: string) => void;
   replaceCollections: (collections: Collection[]) => void;
 
   /* misc */
@@ -271,6 +276,16 @@ export const useWorkspaces = create<WorkspaceState>()(
         clearCookies: () => patchActive((ws) => ({ ...ws, cookies: [] })),
 
         setGitRepoPath: (path) => patchActive((ws) => ({ ...ws, gitRepoPath: path })),
+
+        addMonitor: (monitor) => patchActive((ws) => ({ ...ws, monitors: [...(ws.monitors ?? []), monitor] })),
+        updateMonitor: (id, patch) =>
+          // Monitors run in the background; patch whichever workspace owns this one, not just the active one.
+          set((state) => ({
+            workspaces: state.workspaces.map((ws) =>
+              ws.monitors?.some((m) => m.id === id) ? { ...ws, monitors: ws.monitors.map((m) => (m.id === id ? { ...m, ...patch } : m)) } : ws,
+            ),
+          })),
+        deleteMonitor: (id) => patchActive((ws) => ({ ...ws, monitors: (ws.monitors ?? []).filter((m) => m.id !== id) })),
         replaceCollections: (collections) => patchActive((ws) => ({ ...ws, collections })),
 
         setWorkspaceIcon: (icon) => patchActive((ws) => ({ ...ws, icon })),

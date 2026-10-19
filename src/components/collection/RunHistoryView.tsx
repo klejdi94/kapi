@@ -18,6 +18,7 @@ function RunRow({ entry }: { entry: RunHistoryEntry }) {
         <ChevronRight size={12} className={clsx('shrink-0 text-faint transition-transform', open && 'rotate-90')} />
         <span className="w-16 shrink-0 text-[11px] text-faint">{formatRelativeTime(entry.at)}</span>
         {entry.scopeName && <span className="shrink-0 rounded bg-surface-3 px-1.5 py-0.5 text-[10px] text-dim">{entry.scopeName}</span>}
+        {entry.monitorId && <span className="shrink-0 rounded bg-accent/15 px-1.5 py-0.5 text-[10px] text-accent">monitor</span>}
         <span className={clsx('shrink-0 text-[12px] font-semibold', entry.failed || entry.errored ? 'text-danger' : 'text-ok')}>
           {entry.passed}/{total}
         </span>

@@ -17,8 +17,9 @@ import { countByType } from '@/lib/tree';
 import { saveFile } from '@/lib/saveFile';
 import { toast } from '@/lib/toast';
 import { buildScope } from '@/lib/variables';
+import { MonitorsTab } from './MonitorsTab';
 
-type DetailTab = 'overview' | 'auth' | 'headers' | 'variables' | 'scripts' | 'docs' | 'history' | 'spec';
+type DetailTab = 'overview' | 'auth' | 'headers' | 'variables' | 'scripts' | 'docs' | 'history' | 'spec' | 'monitors';
 type ScriptPhase = 'pre' | 'test';
 
 const SCRIPT_PLACEHOLDER: Record<ScriptPhase, string> = {
@@ -111,6 +112,7 @@ export function CollectionDetailPage({ collection, onExport }: { collection: Col
             { value: 'variables', label: 'Variables', count: collection.variables.filter((v) => v.key.trim()).length },
             { value: 'scripts', label: 'Scripts', dot: !!(collection.preRequestScript?.trim() || collection.testScript?.trim()) },
             { value: 'docs', label: 'Docs' },
+            { value: 'monitors', label: 'Monitors', count: (workspace.monitors ?? []).filter((m) => m.collectionId === collection.id).length },
             { value: 'history', label: 'History', count: runHistoryCount },
             { value: 'spec', label: 'Spec History', count: specHistoryCount },
           ]}
@@ -213,6 +215,7 @@ export function CollectionDetailPage({ collection, onExport }: { collection: Col
           </div>
         )}
 
+        {tab === 'monitors' && <MonitorsTab collection={collection} />}
         {tab === 'history' && <RunHistoryView collectionId={collection.id} />}
         {tab === 'spec' && <SpecHistoryView collectionId={collection.id} />}
       </div>

@@ -17,6 +17,9 @@ All notable changes to kapi. Versions follow [semver](https://semver.org).
   pulling keeps your local values.
 
 ### Added
+- **Monitors**: run a collection or folder on a schedule while kapi is open (every 5 minutes to daily),
+  with a system notification on failure or on a status change, results in History, and a ready-made
+  GitHub Actions workflow for when kapi is closed.
 - **Contract testing from OpenAPI**: requests imported or synced from a spec keep its documented
   responses, and every response is checked for a documented status and a body matching the schema
   (OpenAPI 3.0/3.1 and Swagger 2, `$ref`s and `nullable` handled) — in the app, the Runner and the CLI,

@@ -52,6 +52,7 @@ import { responseToExample, exampleToResponse } from '@/lib/examples';
 import { applyScriptRequest, chainScripts, responseToScriptInput, scriptRequestOf, type ScriptVars, type ChainOutcome, type TestResult } from '@/lib/scripting';
 import { makeScriptSender } from '@/lib/scripting/sendBridge';
 import { contractTestsLazy } from '@/lib/contractLazy';
+import { startMonitorScheduler } from '@/lib/monitorScheduler';
 import { useTestResults } from '@/store/testResults';
 import { withTrailingBlank } from '@/lib/factory';
 import type { GrpcRequestDef, KapiResponse, RequestDef, SavedExample, SentRequest, WebSocketRequestDef } from '@/types';
@@ -494,6 +495,9 @@ export default function App() {
       if (!silent) toast.error('Could not check for updates', err instanceof Error ? err.message : String(err));
     }
   };
+
+  // Scheduled collection runs (see lib/monitors.ts) while the app is open.
+  useEffect(() => startMonitorScheduler(), []);
 
   // Quiet check shortly after launch — never interrupts the user, only
   // surfaces a toast when an update is actually found.
