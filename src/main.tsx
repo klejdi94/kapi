@@ -3,7 +3,13 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { flushPendingWrites } from './lib/fileStorage';
+import { setScriptSandbox } from './lib/scripting';
+import { workerSandbox } from './lib/scripting/workerSandbox';
 import './styles/app.css';
+
+// Pre-request/test scripts run in a disposable Web Worker with no Tauri IPC —
+// see lib/scripting/sandbox.ts for why they never run in this window.
+setScriptSandbox(workerSandbox);
 
 // Debounced disk writes (see fileStorage.ts) must not be lost when the
 // window closes before their timer fires.

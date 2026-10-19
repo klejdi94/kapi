@@ -1,9 +1,10 @@
 import type { Collection, Environment, KV, RequestNode, Workspace } from '@/types';
-import { buildScope } from '@/lib/variables';
+import { buildScope, type VarScope } from '@/lib/variables';
 import { resolveInherited } from '@/lib/inherit';
 import { ancestorsOf, locate, walk } from '@/lib/tree';
 import { send } from '@/lib/send';
-import { chainScripts, responseToScriptInput, type ScriptVars } from '@/lib/scripting';
+import { applyScriptRequest, chainScripts, responseToScriptInput, scriptRequestOf, type ScriptVars } from '@/lib/scripting';
+import { makeScriptSender } from '@/lib/scripting/sendBridge';
 
 export interface HeadlessTarget {
   node: RequestNode;
@@ -76,30 +77,34 @@ export async function runHeadless(opts: {
     const dataRow = opts.dataRows.length ? opts.dataRows[iteration % opts.dataRows.length] : null;
 
     for (const target of opts.targets) {
-      const request = resolveInherited(target.node.request, opts.collection, ancestorsOf(opts.collection.items, target.node.id));
-      const scriptRequest = {
-        method: request.method,
-        url: request.url,
-        headers: request.headers.filter((h) => h.enabled && h.key).map((h) => [h.key, h.value] as [string, string]),
-      };
+      const resolved = resolveInherited(target.node.request, opts.collection, ancestorsOf(opts.collection.items, target.node.id));
       const startVars: ScriptVars = { environment: environment.variables, globals, collectionVariables: collectionVars };
+      const scopeFor = (): VarScope => {
+        const workspaceLike: Workspace = {
+          id: '', name: '', icon: '', collections: [], globals,
+          environments: [environment],
+          activeEnvironmentId: environment.id,
+          createdAt: 0, updatedAt: 0, gitRepoPath: null,
+          mockServer: { port: 0, routes: [] }, cookies: [],
+        };
+        const built = buildScope(workspaceLike, { ...opts.collection, variables: collectionVars });
+        if (dataRow) for (const [key, value] of Object.entries(dataRow)) built.set(key, { value, source: 'dynamic', origin: 'Data file' });
+        return built;
+      };
 
-      const pre = chainScripts([opts.collection.preRequestScript, request.preRequestScript], startVars, { request: scriptRequest });
+      const info = { requestName: target.node.name, requestId: target.node.id, iteration, iterationCount };
+      const scriptBase = { request: scriptRequestOf(resolved), environmentName: environment.name, iterationData: dataRow ?? undefined, info };
+      const scriptSender = makeScriptSender((r, s) => send(r, s, {}), scopeFor(), resolved);
+      const pre = await chainScripts([opts.collection.preRequestScript, resolved.preRequestScript], startVars, scriptBase, 'prerequest', {
+        sendRequest: scriptSender,
+      });
       if (pre.ran) {
         globals = pre.vars.globals;
         environment = { ...environment, variables: pre.vars.environment };
         collectionVars = pre.vars.collectionVariables;
       }
-
-      const workspaceLike: Workspace = {
-        id: '', name: '', icon: '', collections: [], globals,
-        environments: [environment],
-        activeEnvironmentId: environment.id,
-        createdAt: 0, updatedAt: 0, gitRepoPath: null,
-        mockServer: { port: 0, routes: [] }, cookies: [],
-      };
-      const scope = buildScope(workspaceLike, { ...opts.collection, variables: collectionVars });
-      if (dataRow) for (const [key, value] of Object.entries(dataRow)) scope.set(key, { value, source: 'dynamic', origin: 'Data file' });
+      const request = applyScriptRequest(resolved, pre);
+      const scope = scopeFor();
 
       const started = performance.now();
       const result = await send(request, scope, {});
@@ -112,10 +117,13 @@ export async function runHeadless(opts: {
         continue;
       }
 
-      const post = chainScripts([opts.collection.testScript, request.testScript], pre.vars, {
-        request: scriptRequest,
-        response: responseToScriptInput(result.response),
-      });
+      const post = await chainScripts(
+        [opts.collection.testScript, request.testScript],
+        pre.vars,
+        { ...scriptBase, request: pre.request, response: responseToScriptInput(result.response) },
+        'test',
+        { sendRequest: scriptSender },
+      );
       if (post.ran) {
         globals = post.vars.globals;
         environment = { ...environment, variables: post.vars.environment };
@@ -127,7 +135,7 @@ export async function runHeadless(opts: {
         ...base,
         status: post.tests.length ? (failed ? 'failed' : 'passed') : 'passed',
         httpStatus: result.response.status,
-        errorMessage: post.errors.length ? post.errors.join('\n') : null,
+        errorMessage: pre.errors.length || post.errors.length ? [...pre.errors, ...post.errors].join('\n') : null,
         tests: post.tests,
       });
 

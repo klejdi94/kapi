@@ -48,7 +48,8 @@ import { sendWithCookies } from '@/lib/sendWithCookies';
 import { uid, newWebSocketRequest } from '@/lib/factory';
 import { toast } from '@/lib/toast';
 import { responseToExample, exampleToResponse } from '@/lib/examples';
-import { chainScripts, responseToScriptInput, type ScriptVars, type ChainOutcome, type TestResult } from '@/lib/scripting';
+import { applyScriptRequest, chainScripts, responseToScriptInput, scriptRequestOf, type ScriptVars, type ChainOutcome, type TestResult } from '@/lib/scripting';
+import { makeScriptSender } from '@/lib/scripting/sendBridge';
 import { useTestResults } from '@/store/testResults';
 import { withTrailingBlank } from '@/lib/factory';
 import type { KapiResponse, RequestDef, SavedExample, SentRequest, WebSocketRequestDef } from '@/types';
@@ -207,23 +208,27 @@ export default function App() {
     if (!activeTab || activeTab.kind !== 'http') return;
     // The tab's own request may say `auth: 'inherit'` or rely on folder/collection
     // headers — resolve those before anything hits the wire.
-    const request = resolveInheritedForNode(activeTab.request, collection, activeTab.nodeId);
-    const scriptRequest = {
-      method: request.method,
-      url: request.url,
-      headers: request.headers.filter((h) => h.enabled && h.key).map((h) => [h.key, h.value] as [string, string]),
-    };
+    const resolved = resolveInheritedForNode(activeTab.request, collection, activeTab.nodeId);
     const startVars: ScriptVars = {
       environment: environment?.variables ?? [],
       globals: workspace.globals,
       collectionVariables: collection?.variables ?? [],
     };
 
-    const pre = chainScripts([collection?.preRequestScript, activeTab.request.preRequestScript], startVars, {
-      request: scriptRequest,
+    const scriptBase = {
+      request: scriptRequestOf(resolved),
+      environmentName: environment?.name,
+      info: { requestName: activeTab.name, requestId: activeTab.nodeId ?? activeTab.id },
+    };
+    const scriptSender = makeScriptSender((r, s) => sendWithCookies(r, s), scope, resolved);
+    const pre = await chainScripts([collection?.preRequestScript, activeTab.request.preRequestScript], startVars, scriptBase, 'prerequest', {
+      sendRequest: scriptSender,
     });
     logScriptPhase('Pre-request', pre, activeTab.name);
     persistScriptVars(pre);
+    // `pm.request.url = …` / `pm.request.headers.add(…)` apply to this send only;
+    // the saved request is left as the user wrote it, same as Postman.
+    const request = applyScriptRequest(resolved, pre);
 
     // Variables the pre-request script just set must be visible to {{...}}
     // substitution on this very send, so rebuild the scope from its output
@@ -267,10 +272,13 @@ export default function App() {
         detail: describeExchange(r),
         tabName: activeTab.name,
       });
-      const post = chainScripts([collection?.testScript, activeTab.request.testScript], pre.vars, {
-        request: scriptRequest,
-        response: responseToScriptInput(result.response),
-      });
+      const post = await chainScripts(
+        [collection?.testScript, activeTab.request.testScript],
+        pre.vars,
+        { ...scriptBase, request: pre.request, response: responseToScriptInput(result.response) },
+        'test',
+        { sendRequest: scriptSender },
+      );
       logScriptPhase('Test', post, activeTab.name);
       persistScriptVars(post);
       useTestResults.getState().setResults(activeTab.id, post.tests);
@@ -307,7 +315,7 @@ export default function App() {
       duration: result.ok ? result.response.timings.total : result.error.elapsed,
       size: result.ok ? result.response.size.body : 0,
       at: Date.now(),
-      request: structuredClone(request),
+      request: structuredClone(resolved),
     });
   };
 

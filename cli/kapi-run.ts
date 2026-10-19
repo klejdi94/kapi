@@ -26,9 +26,15 @@ import { readFileSync } from 'node:fs';
 import { resolve as resolvePath } from 'node:path';
 import type { Collection, Environment, KV } from '@/types';
 import { parseCsv } from '@/lib/csv';
+import { setScriptSandbox } from '@/lib/scripting';
+import { nodeSandbox } from '@/lib/scripting/nodeSandbox';
 import { locate, walk } from '@/lib/tree';
 import { looksLikePostmanCollection, importPostmanCollection, looksLikePostmanEnvironment, importPostmanEnvironment } from '@/lib/importers/postman';
 import { runHeadless, headlessTargetsFor, type HeadlessResult } from '@/cli/headlessRunner';
+
+// Collection scripts may come from anyone who shared the collection — they run
+// in an isolated vm context, never with this process's own Node APIs.
+setScriptSandbox(nodeSandbox);
 
 function readJson(path: string): unknown {
   return JSON.parse(readFileSync(resolvePath(process.cwd(), path), 'utf-8'));

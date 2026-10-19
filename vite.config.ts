@@ -16,7 +16,11 @@ export default defineConfig({
   },
   server: { port: 5173, strictPort: true },
   test: {
-    environment: 'jsdom',
+    // Pure-logic modules run in plain Node; a test that needs a DOM opts in
+    // with a `// @vitest-environment jsdom` docblock — creating a jsdom per
+    // file used to be ~90% of the suite's runtime.
+    environment: 'node',
+    setupFiles: ['src/test/setup.ts'],
     globals: false,
     css: false,
   },

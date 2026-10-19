@@ -3,7 +3,8 @@ import { buildScope } from './variables';
 import { resolveInherited } from './inherit';
 import { ancestorsOf, locate, walk } from './tree';
 import { sendWithCookies } from './sendWithCookies';
-import { chainScripts, responseToScriptInput, type ScriptVars, type TestResult } from './scripting';
+import { applyScriptRequest, chainScripts, responseToScriptInput, scriptRequestOf, type ScriptVars, type TestResult } from './scripting';
+import { makeScriptSender } from './scripting/sendBridge';
 import { useWorkspaces, activeWorkspace, findCollection } from '@/store/workspaces';
 import { useConsole } from '@/store/console';
 import { withTrailingBlank } from './factory';
@@ -106,12 +107,7 @@ export async function runCollection(opts: RunCollectionOptions): Promise<void> {
       const collection = findCollection(workspace, opts.collectionId);
       if (!collection) return;
 
-      const request = resolveInherited(target.node.request, collection, ancestorsOf(collection.items, target.node.id));
-      const scriptRequest = {
-        method: request.method,
-        url: request.url,
-        headers: request.headers.filter((h) => h.enabled && h.key).map((h) => [h.key, h.value] as [string, string]),
-      };
+      const resolved = resolveInherited(target.node.request, collection, ancestorsOf(collection.items, target.node.id));
       const environment = workspace.environments.find((e) => e.id === workspace.activeEnvironmentId) ?? null;
       const startVars: ScriptVars = {
         environment: environment?.variables ?? [],
@@ -119,8 +115,14 @@ export async function runCollection(opts: RunCollectionOptions): Promise<void> {
         collectionVariables: collection.variables,
       };
 
-      const pre = chainScripts([collection.preRequestScript, request.preRequestScript], startVars, { request: scriptRequest });
+      const info = { requestName: target.node.name, requestId: target.node.id, iteration, iterationCount };
+      const scriptBase = { request: scriptRequestOf(resolved), environmentName: environment?.name, iterationData: dataRow ?? undefined, info };
+      const scriptSender = makeScriptSender((r, s) => sendWithCookies(r, s, { signal }), buildScope(workspace, collection), resolved);
+      const pre = await chainScripts([collection.preRequestScript, resolved.preRequestScript], startVars, scriptBase, 'prerequest', {
+        sendRequest: scriptSender,
+      });
       persistVars(workspace, collection, pre.vars, pre.ran);
+      const request = applyScriptRequest(resolved, pre);
 
       let scope = buildScope(
         pre.ran
@@ -164,17 +166,20 @@ export async function runCollection(opts: RunCollectionOptions): Promise<void> {
         continue;
       }
 
-      const post = chainScripts([collection.testScript, request.testScript], pre.vars, {
-        request: scriptRequest,
-        response: responseToScriptInput(result.response),
-      });
+      const post = await chainScripts(
+        [collection.testScript, request.testScript],
+        pre.vars,
+        { ...scriptBase, request: pre.request, response: responseToScriptInput(result.response) },
+        'test',
+        { sendRequest: scriptSender },
+      );
       persistVars(workspace, collection, post.vars, post.ran);
 
       const failed = post.tests.some((t) => !t.passed);
       useConsole.getState().log({
         kind: 'http-response',
         summary: `Runner · ${result.response.status} ${request.method} ${request.url}${post.tests.length ? ` · ${post.tests.length - post.tests.filter((t) => !t.passed).length}/${post.tests.length} tests passed` : ''}`,
-        detail: post.errors.join('\n'),
+        detail: [...pre.errors, ...post.errors, ...pre.logs, ...post.logs].join('\n'),
         tabName: target.node.name,
       });
 
@@ -182,7 +187,7 @@ export async function runCollection(opts: RunCollectionOptions): Promise<void> {
         ...base,
         status: post.tests.length ? (failed ? 'failed' : 'passed') : 'passed',
         httpStatus: result.response.status,
-        errorMessage: post.errors.length ? post.errors.join('\n') : null,
+        errorMessage: pre.errors.length || post.errors.length ? [...pre.errors, ...post.errors].join('\n') : null,
         tests: post.tests,
         response: result.response,
       });

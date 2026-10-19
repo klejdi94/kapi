@@ -15,6 +15,8 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { setScriptSandbox } from '@/lib/scripting';
+import { nodeSandbox } from '@/lib/scripting/nodeSandbox';
 import { dataDir, findAppInstall, KAPI_RELEASES_URL } from './lib/dataDir.ts';
 import { RELOAD_HINT } from './lib/fileStore.ts';
 import {
@@ -31,6 +33,10 @@ import {
 } from './lib/workspaceOps.ts';
 import { runTests } from './lib/runTests.ts';
 import { syncOpenApi } from './lib/openapiSync.ts';
+
+// Collection scripts may come from anyone who shared the collection — they run
+// in an isolated vm context, never with this process's own Node APIs.
+setScriptSandbox(nodeSandbox);
 
 const server = new McpServer({ name: 'kapi', version: '0.3.1' });
 
