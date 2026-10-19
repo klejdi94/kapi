@@ -54,7 +54,11 @@ impl Cli {
     /// bare PATH lookup alone would miss these.
     fn home_candidates(self) -> &'static [&'static str] {
         match (self, cfg!(windows)) {
-            (Cli::Claude, true) => &["AppData/Roaming/npm/claude.cmd", ".local/bin/claude.exe", ".claude/local/claude.exe"],
+            (Cli::Claude, true) => &[
+                "AppData/Roaming/npm/claude.cmd",
+                ".local/bin/claude.exe",
+                ".claude/local/claude.exe",
+            ],
             (Cli::Claude, false) => &[".local/bin/claude", ".claude/local/claude"],
             (Cli::Codex, true) => &["AppData/Roaming/npm/codex.cmd", ".local/bin/codex.exe"],
             (Cli::Codex, false) => &[".local/bin/codex"],
@@ -127,7 +131,10 @@ fn run_with_stdin(mut command: Command, input: String, binary: &Path, label: &st
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("Could not run the {label} CLI ({}): {}", binary.display(), e))?;
-    let mut stdin = child.stdin.take().ok_or_else(|| format!("Could not open stdin for the {label} CLI"))?;
+    let mut stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| format!("Could not open stdin for the {label} CLI"))?;
     let writer = std::thread::spawn(move || {
         use std::io::Write;
         // A CLI that exits early closes the pipe; that error is reported via its exit status instead.
@@ -187,8 +194,8 @@ fn run_prompt(cli: Cli, prompt: &str, system_prompt: &str) -> Result<String, Str
                 let _ = std::fs::remove_file(&output_path);
                 return finish(output, &binary);
             }
-            let text = std::fs::read_to_string(&output_path)
-                .map_err(|e| format!("codex finished but its output file couldn't be read: {e}"))?;
+            let text =
+                std::fs::read_to_string(&output_path).map_err(|e| format!("codex finished but its output file couldn't be read: {e}"))?;
             let _ = std::fs::remove_file(&output_path);
             Ok(text.trim().to_string())
         }
@@ -229,7 +236,14 @@ fn finish(output: std::process::Output, binary: &Path) -> Result<String, String>
 /// time, which stat() can't tell us.
 fn is_available(cli: Cli) -> bool {
     let binary = find_binary(cli);
-    base_command(&binary).arg("--version").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).status().map(|s| s.success()).unwrap_or(false)
+    base_command(&binary)
+        .arg("--version")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
 }
 
 /// Which of claude/codex/gemini are actually installed on this machine, so

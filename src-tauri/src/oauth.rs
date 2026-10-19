@@ -41,7 +41,7 @@ pub async fn kapi_oauth_listen(state: tauri::State<'_, OAuthListenState>, port: 
             match server.recv_timeout(Duration::from_millis(300)) {
                 Ok(Some(request)) => {
                     let url = request.url().to_string();
-                    let query = url.splitn(2, '?').nth(1).unwrap_or("").to_string();
+                    let query = url.split_once('?').map(|(_, q)| q).unwrap_or("").to_string();
                     let mut response = Response::from_string(CALLBACK_HTML);
                     if let Ok(header) = Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=utf-8"[..]) {
                         response = response.with_header(header);

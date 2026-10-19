@@ -42,7 +42,9 @@ fn build_multipart_form(fields: Vec<MultipartField>) -> Result<reqwest::blocking
     let mut form = reqwest::blocking::multipart::Form::new();
     for field in fields {
         form = if field.kind == "file" {
-            let bytes = field.file_bytes.ok_or_else(|| format!("File field \"{}\" had no bytes", field.name))?;
+            let bytes = field
+                .file_bytes
+                .ok_or_else(|| format!("File field \"{}\" had no bytes", field.name))?;
             let mut part = reqwest::blocking::multipart::Part::bytes(bytes);
             if let Some(file_name) = field.file_name {
                 part = part.file_name(file_name);
@@ -79,8 +81,7 @@ pub struct MtlsResponse {
 pub async fn kapi_send_mtls(req: MtlsRequest) -> Result<MtlsResponse, String> {
     tauri::async_runtime::spawn_blocking(move || -> Result<MtlsResponse, String> {
         let identity_pem = format!("{}\n{}", req.client_key_pem, req.client_cert_pem);
-        let identity = reqwest::Identity::from_pem(identity_pem.as_bytes())
-            .map_err(|e| format!("Invalid client certificate/key: {e}"))?;
+        let identity = reqwest::Identity::from_pem(identity_pem.as_bytes()).map_err(|e| format!("Invalid client certificate/key: {e}"))?;
 
         let mut builder = reqwest::blocking::Client::builder()
             .identity(identity)
@@ -131,7 +132,13 @@ pub async fn kapi_send_mtls(req: MtlsRequest) -> Result<MtlsResponse, String> {
             .collect();
         let body = response.bytes().map_err(|e| e.to_string())?.to_vec();
 
-        Ok(MtlsResponse { status, status_text, headers, body, final_url })
+        Ok(MtlsResponse {
+            status,
+            status_text,
+            headers,
+            body,
+            final_url,
+        })
     })
     .await
     .map_err(|e| format!("mTLS request task failed: {e}"))?

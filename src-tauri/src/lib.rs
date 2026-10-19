@@ -24,10 +24,16 @@ use secrets::kapi_secrets_key;
 /// rename away from undone.
 fn write_atomic(target: &Path, contents: &[u8], backup: bool) -> std::io::Result<()> {
     use std::io::Write;
-    let parent = target.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or_else(|| Path::new("."));
+    let parent = target
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
     fs::create_dir_all(parent)?;
     let file_name = target.file_name().and_then(|n| n.to_str()).unwrap_or("kapi");
-    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
     let tmp = parent.join(format!(".{file_name}.{}-{nanos}.tmp", std::process::id()));
 
     let result = (|| {
@@ -76,49 +82,46 @@ fn kapi_path_exists(path: String) -> bool {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-  tauri::Builder::default()
-    .plugin(tauri_plugin_http::init())
-    .plugin(tauri_plugin_shell::init())
-    .plugin(tauri_plugin_dialog::init())
-    .plugin(tauri_plugin_websocket::init())
-    .plugin(tauri_plugin_updater::Builder::new().build())
-    .plugin(tauri_plugin_process::init())
-    .manage(MockState::default())
-    .manage(OAuthListenState::default())
-    .invoke_handler(tauri::generate_handler![
-      kapi_write_text_file,
-      kapi_write_binary_file,
-      kapi_read_text_file,
-      kapi_path_exists,
-      kapi_mock_start,
-      kapi_mock_stop,
-      kapi_mock_is_running,
-      kapi_open_discovery,
-      kapi_discovery_report,
-      kapi_oauth_listen,
-      kapi_oauth_cancel,
-      kapi_send_mtls,
-      kapi_ai_list_available,
-      kapi_ai_prompt,
-      kapi_secrets_key
-    ])
-    .on_menu_event(|app, event| {
-      appmenu::handle_event(app, event.id().as_ref());
-    })
-    .setup(|app| {
-      if cfg!(debug_assertions) {
-        app.handle().plugin(
-          tauri_plugin_log::Builder::default()
-            .level(log::LevelFilter::Info)
-            .build(),
-        )?;
-      }
-      let menu = appmenu::build(app)?;
-      app.set_menu(menu)?;
-      Ok(())
-    })
-    .run(tauri::generate_context!())
-    .expect("error while running tauri application");
+    tauri::Builder::default()
+        .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_websocket::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
+        .manage(MockState::default())
+        .manage(OAuthListenState::default())
+        .invoke_handler(tauri::generate_handler![
+            kapi_write_text_file,
+            kapi_write_binary_file,
+            kapi_read_text_file,
+            kapi_path_exists,
+            kapi_mock_start,
+            kapi_mock_stop,
+            kapi_mock_is_running,
+            kapi_open_discovery,
+            kapi_discovery_report,
+            kapi_oauth_listen,
+            kapi_oauth_cancel,
+            kapi_send_mtls,
+            kapi_ai_list_available,
+            kapi_ai_prompt,
+            kapi_secrets_key
+        ])
+        .on_menu_event(|app, event| {
+            appmenu::handle_event(app, event.id().as_ref());
+        })
+        .setup(|app| {
+            if cfg!(debug_assertions) {
+                app.handle()
+                    .plugin(tauri_plugin_log::Builder::default().level(log::LevelFilter::Info).build())?;
+            }
+            let menu = appmenu::build(app)?;
+            app.set_menu(menu)?;
+            Ok(())
+        })
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
 }
 
 #[cfg(test)]
@@ -142,7 +145,11 @@ mod write_tests {
         write_atomic(&file, b"two", true).unwrap();
         assert_eq!(fs::read_to_string(&file).unwrap(), "two");
         assert_eq!(fs::read_to_string(dir.join("kapi.workspaces.json.bak")).unwrap(), "one");
-        let leftovers: Vec<_> = fs::read_dir(&dir).unwrap().filter_map(|e| e.ok()).filter(|e| e.file_name().to_string_lossy().ends_with(".tmp")).collect();
+        let leftovers: Vec<_> = fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().ends_with(".tmp"))
+            .collect();
         assert!(leftovers.is_empty(), "temp files are cleaned up");
         fs::remove_dir_all(dir).unwrap();
     }
@@ -185,7 +192,10 @@ mod capability_tests {
     }
 
     fn scope(name: &str) -> Value {
-        git_scopes().into_iter().find(|s| s["name"] == name).unwrap_or_else(|| panic!("no scope {name}"))
+        git_scopes()
+            .into_iter()
+            .find(|s| s["name"] == name)
+            .unwrap_or_else(|| panic!("no scope {name}"))
     }
 
     #[test]

@@ -24,12 +24,29 @@ jobs:
       - run: npm test
       - run: npm run build
 
+      # The `npx kapi` bundle: it has to build, start, and run a collection
+      # (scripts included) end to end, since nothing else exercises the bundle.
+      - run: npm run build:npm
+      - name: Smoke-test the npm bundle
+        run: |
+          node npm/dist/kapi.js --version
+          node -e "require('http').createServer((q,s)=>{s.setHeader('content-type','application/json');s.end(JSON.stringify({ok:true}))}).listen(18080)" &
+          sleep 1
+          cat > /tmp/smoke.json <<'JSON'
+          {"info":{"name":"smoke","schema":"https://schema.getpostman.com/json/collection/v2.1.0/collection.json"},
+           "item":[{"name":"ok","event":[{"listen":"test","script":{"exec":["pm.test('ok', () => pm.expect(pm.response.json().ok).to.be.true);"]}}],
+             "request":{"method":"GET","url":"http://127.0.0.1:18080/"}}]}
+          JSON
+          node npm/dist/kapi.js run /tmp/smoke.json
+
   rust:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
       - uses: swatinem/rust-cache@v2
         with:
@@ -43,6 +60,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - name: cargo check
+      - name: rustfmt
         working-directory: src-tauri
-        run: cargo check --all-targets
+        run: cargo fmt --check
+
+      - name: clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo test
+        working-directory: src-tauri
+        run: cargo test

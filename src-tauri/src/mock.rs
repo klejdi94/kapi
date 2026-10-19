@@ -124,7 +124,13 @@ pub fn kapi_mock_start(app: AppHandle, state: State<MockState>, config: MockConf
                     let _ = request.respond(response);
                     let _ = app.emit(
                         "kapi://mock-hit",
-                        MockHit { method, path, status, matched: hit, at: now_ms() },
+                        MockHit {
+                            method,
+                            path,
+                            status,
+                            matched: hit,
+                            at: now_ms(),
+                        },
                     );
                 }
                 Ok(None) => continue, // timed out waiting, loop to recheck stop_flag

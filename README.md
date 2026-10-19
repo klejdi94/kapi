@@ -48,8 +48,9 @@ Because the good ones went to the cloud and took your requests with them.
 
 ### Everything about a collection in one page
 
-Default auth and headers every request inherits, variables (with a **secret** toggle that also keeps
-them out of anything sent to the AI), collection-wide scripts, and docs — no hunting through modals.
+Default auth and headers every request inherits, variables (with a **secret** toggle that encrypts them
+at rest with a key in your OS keychain and keeps them out of anything sent to the AI), collection-wide
+scripts, and docs — no hunting through modals.
 
 <p align="center">
   <img alt="Collection overview page" src="docs/screenshots/collection-overview.jpg" width="880">
@@ -107,8 +108,10 @@ collection scope and globals — with a diff view for comparing two environments
 </td><td width="50%" valign="top">
 
 **Scripting, the Postman way**
-Pre-request and test scripts with the `pm` API you already know, per request *and* per collection,
-running in that order. Assertions land in a Tests panel; `console.log` and errors land in the Console.
+Pre-request and test scripts with the `pm` API you already know — chai-style `pm.expect`,
+`pm.response.to.have.status`, `pm.sendRequest`, `pm.iterationData`, even legacy `postman.*` and
+`tests[…]` — per request *and* per collection, running in that order. Scripts run in a sandbox with
+no access to your files or the app, so an imported collection can't do more than send requests.
 
 </td></tr>
 <tr><td width="50%" valign="top">
@@ -195,8 +198,7 @@ The same pre-request → send → test pipeline the GUI's "Run collection" uses,
 no app instance, just Node reading the files kapi already exports:
 
 ```bash
-git clone https://github.com/klejdi94/kapi.git && cd kapi && npm install
-npm run cli -- run my-collection.kapi.json --env staging.json --iterations 5 --data users.csv
+npx kapi run my-collection.kapi.json --env staging.json --iterations 5 --data users.csv
 ```
 
 Takes a kapi-native (`.kapi.json`) or Postman v2.1 collection export, an optional kapi or Postman
@@ -216,8 +218,7 @@ spec over time, directly in your workspace. Nothing about the AI CLI's own crede
 touched; kapi only reads and writes the same JSON files the app itself uses.
 
 ```bash
-git clone https://github.com/klejdi94/kapi.git && cd kapi && npm install
-npm run mcp:install
+npx kapi mcp install
 ```
 
 Registers `kapi` on whichever of `claude`/`codex`/`gemini` is on your PATH, and installs a companion
@@ -256,6 +257,11 @@ xattr -cr /Applications/kapi.app
 
 **Windows** — SmartScreen shows a warning: **More info → Run anyway**.
 
+**Keychain prompt** — secret variables are encrypted with a key kept in your OS keychain. On macOS,
+an unsigned build may ask once after each update whether kapi can use it; choose **Always Allow**.
+If the keychain isn't available (for example a Linux desktop without a Secret Service), kapi says so
+and keeps secrets in its data files as before.
+
 </details>
 
 ---
@@ -274,22 +280,22 @@ gets confused with) a real installed build's data.
 
 ```bash
 npm run desktop:build   # bundle into src-tauri/target/release/bundle/
-npx tsc --noEmit        # typecheck
-npm test                # vitest — pure-logic modules and stores
+npm run typecheck       # tsc --noEmit
+npm test                # vitest — pure-logic modules, stores and the script sandbox
+npm run build:npm       # the `npx kapi` CLI + MCP bundle, in npm/dist
+npm run cli -- run …    # the CLI straight from source
 ```
 
 On macOS, building the `.dmg` needs `hdiutil` to mount a disk image, which some sandboxed shells
 block — if that step fails the `.app` itself is still valid, or you can let CI build it.
 
-Every push and pull request runs typecheck, tests and a frontend build, plus `cargo check` for the
-Rust side.
+Every push and pull request runs typecheck, tests, a frontend build and a smoke test of the npm
+bundle, plus `cargo fmt`, `clippy` and `cargo test` for the Rust side. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for more.
 
 **Releases.** Pushing a tag builds macOS (Apple Silicon + Intel), Windows, and Linux installers on
-GitHub's runners and attaches them to a draft release:
-
-```bash
-git tag v0.3.1 && git push origin v0.3.1
-```
+GitHub's runners and attaches them to a draft release; publishing the draft also publishes
+`npx kapi`. The whole flow, including optional code signing, is in [docs/RELEASING.md](docs/RELEASING.md).
 
 ---
 

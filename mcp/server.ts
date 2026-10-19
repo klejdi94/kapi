@@ -9,8 +9,9 @@
  * `src/lib/fileStorage.ts`), and never touches credentials for the AI CLI
  * that's running it.
  *
- * Usage: registered once via `npm run mcp:install`, then invoked by the AI
- * CLI itself — not meant to be run by hand except to sanity-check startup.
+ * Usage: registered once via `npx kapi mcp install` (or `npm run mcp:install`
+ * from a clone), then invoked by the AI CLI itself — not meant to be run by
+ * hand except to sanity-check startup.
  */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';

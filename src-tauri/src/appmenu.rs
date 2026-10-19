@@ -30,13 +30,25 @@ pub fn build<R: Runtime>(app: &App<R>) -> tauri::Result<Menu<R>> {
     // flush any debounced writes before the process exits (see lib/exitFlush.ts).
     let app_menu = app_menu
         .separator()
-        .item(&MenuItemBuilder::with_id("quit", "Quit kapi").accelerator("CmdOrCtrl+Q").build(app)?)
+        .item(
+            &MenuItemBuilder::with_id("quit", "Quit kapi")
+                .accelerator("CmdOrCtrl+Q")
+                .build(app)?,
+        )
         .build()?;
 
     let file_menu = SubmenuBuilder::new(app, "File")
-        .item(&MenuItemBuilder::with_id("new-tab", "New Request Tab").accelerator("CmdOrCtrl+T").build(app)?)
+        .item(
+            &MenuItemBuilder::with_id("new-tab", "New Request Tab")
+                .accelerator("CmdOrCtrl+T")
+                .build(app)?,
+        )
         .item(&MenuItemBuilder::with_id("new-ws-tab", "New WebSocket Tab").build(app)?)
-        .item(&MenuItemBuilder::with_id("close-tab", "Close Tab").accelerator("CmdOrCtrl+W").build(app)?)
+        .item(
+            &MenuItemBuilder::with_id("close-tab", "Close Tab")
+                .accelerator("CmdOrCtrl+W")
+                .build(app)?,
+        )
         .item(&MenuItemBuilder::with_id("close-other-tabs", "Close Other Tabs").build(app)?)
         .item(
             &MenuItemBuilder::with_id("close-all-tabs", "Close All Tabs")
@@ -63,9 +75,21 @@ pub fn build<R: Runtime>(app: &App<R>) -> tauri::Result<Menu<R>> {
         .build()?;
 
     let view_menu = SubmenuBuilder::new(app, "View")
-        .item(&MenuItemBuilder::with_id("toggle-sidebar", "Toggle Sidebar").accelerator("CmdOrCtrl+\\").build(app)?)
-        .item(&MenuItemBuilder::with_id("toggle-console", "Toggle Console").accelerator("CmdOrCtrl+`").build(app)?)
-        .item(&MenuItemBuilder::with_id("command-palette", "Command Palette…").accelerator("CmdOrCtrl+K").build(app)?)
+        .item(
+            &MenuItemBuilder::with_id("toggle-sidebar", "Toggle Sidebar")
+                .accelerator("CmdOrCtrl+\\")
+                .build(app)?,
+        )
+        .item(
+            &MenuItemBuilder::with_id("toggle-console", "Toggle Console")
+                .accelerator("CmdOrCtrl+`")
+                .build(app)?,
+        )
+        .item(
+            &MenuItemBuilder::with_id("command-palette", "Command Palette…")
+                .accelerator("CmdOrCtrl+K")
+                .build(app)?,
+        )
         .separator()
         .item(&MenuItemBuilder::with_id("toggle-theme", "Toggle Dark / Light Theme").build(app)?)
         .separator()
