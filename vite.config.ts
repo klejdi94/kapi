@@ -21,6 +21,7 @@ export default defineConfig({
     // file used to be ~90% of the suite's runtime.
     environment: 'node',
     setupFiles: ['src/test/setup.ts'],
+    exclude: ['e2e/**', 'node_modules/**', 'npm/**'],
     globals: false,
     css: false,
   },

@@ -8,3 +8,5 @@ dist
 .gemini/
 npm/dist
 npm/LICENSE
+test-results
+playwright-report

@@ -17,6 +17,7 @@ On Linux the desktop build also needs `libwebkit2gtk-4.1-dev libappindicator3-de
 
 ```bash
 npm run typecheck && npm test && npm run build
+npm run test:e2e          # UI smoke tests in Chromium (first time: npx playwright install chromium)
 npm run build:npm && node npm/dist/kapi.js --version
 (cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test)
 ```

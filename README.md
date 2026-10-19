@@ -282,6 +282,7 @@ gets confused with) a real installed build's data.
 npm run desktop:build   # bundle into src-tauri/target/release/bundle/
 npm run typecheck       # tsc --noEmit
 npm test                # vitest — pure-logic modules, stores and the script sandbox
+npm run test:e2e        # Playwright UI smoke tests against the production build
 npm run build:npm       # the `npx kapi` CLI + MCP bundle, in npm/dist
 npm run cli -- run …    # the CLI straight from source
 ```
